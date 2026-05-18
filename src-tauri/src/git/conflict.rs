@@ -62,7 +62,6 @@ pub fn get_conflict_detail(repo: &git2::Repository, path: &str) -> Result<Confli
 
     let mut ours_lines = Vec::new();
     let mut theirs_lines = Vec::new();
-    let mut before_lines_section: Vec<String> = Vec::new();
     let mut conflicts: Vec<ConflictBlock> = Vec::new();
 
     #[derive(PartialEq)]

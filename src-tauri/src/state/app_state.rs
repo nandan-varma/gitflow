@@ -17,6 +17,7 @@ pub struct CommandLogEntry {
 
 pub struct AppState {
     pub repo_path: Mutex<Option<PathBuf>>,
+    #[allow(dead_code)]
     pub log_tx: mpsc::UnboundedSender<CommandLogEntry>,
     pub watch_stop: Mutex<Option<Arc<AtomicBool>>>,
 }
@@ -30,6 +31,7 @@ impl AppState {
         }
     }
 
+    #[allow(dead_code)]
     pub fn repo_path(&self) -> Option<PathBuf> {
         self.repo_path.lock().unwrap().clone()
     }
@@ -55,6 +57,7 @@ impl AppState {
         *self.watch_stop.lock().unwrap() = Some(stop);
     }
 
+    #[allow(dead_code)]
     pub fn log(&self, entry: CommandLogEntry) {
         let _ = self.log_tx.send(entry);
     }

@@ -80,7 +80,3 @@ pub fn get_status(repo: &git2::Repository) -> Result<Vec<FileStatus>, AppError> 
     Ok(result)
 }
 
-pub fn has_conflicts(repo: &git2::Repository) -> Result<bool, AppError> {
-    let index = repo.index()?;
-    Ok(index.has_conflicts())
-}

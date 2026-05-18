@@ -65,7 +65,7 @@ pub fn run() {
         .setup(|app| {
             // Forward command log entries to the frontend as Tauri events
             let app_handle = app.handle().clone();
-            tokio::spawn(async move {
+            tauri::async_runtime::spawn(async move {
                 while let Some(entry) = log_rx.recv().await {
                     app_handle.emit("command-log", &entry).ok();
                 }
