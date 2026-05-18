@@ -1,0 +1,30 @@
+[package]
+name = "gitflow-studio"
+version = "0.1.0"
+description = "GitFlow Studio — A modern Git client"
+authors = ["nandan-varma"]
+edition = "2021"
+
+[lib]
+name = "gitflow_studio_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-log = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+git2 = { version = "0.19", features = ["vendored-libgit2"] }
+tokio = { version = "1", features = ["full"] }
+notify = "6"
+notify-debouncer-full = "0.3"
+thiserror = "1"
+anyhow = "1"
+chrono = { version = "0.4", features = ["serde"] }

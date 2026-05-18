@@ -1,0 +1,25 @@
+import { QueryClient } from "@tanstack/react-query";
+
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+export const queryKeys = {
+  repoInfo: ["repo", "info"] as const,
+  status: ["status"] as const,
+  branches: ["branches"] as const,
+  stashes: ["stashes"] as const,
+  conflicts: ["conflicts"] as const,
+  graph: (limit: number, offset: number) => ["graph", limit, offset] as const,
+  commitDetail: (oid: string) => ["graph", "commit", oid] as const,
+  diffWorkdir: (path: string) => ["diff", "workdir", path] as const,
+  diffStaged: (path: string) => ["diff", "staged", path] as const,
+  diffCommit: (oid: string, path: string) => ["diff", "commit", oid, path] as const,
+  conflictDetail: (path: string) => ["conflict", path] as const,
+};
