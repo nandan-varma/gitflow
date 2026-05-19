@@ -17,11 +17,11 @@
         "height": 800,
         "minWidth": 900,
         "minHeight": 600,
-        "decorations": true
+        "decorations": false
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self' tauri: asset: https://asset.localhost; img-src 'self' data: asset: https://asset.localhost; style-src 'self' 'unsafe-inline'"
     }
   },
   "bundle": {

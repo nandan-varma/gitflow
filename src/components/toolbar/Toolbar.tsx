@@ -1,5 +1,5 @@
 import React from "react";
-import { ChevronLeft, ChevronRight, GitBranch, RefreshCw, Settings, Terminal } from "lucide-react";
+import { ChevronLeft, ChevronRight, GitBranch, RefreshCw, Terminal } from "lucide-react";
 import { useRepoStore } from "../../store/repoStore";
 import { useRepoInfo } from "../../hooks/useRepository";
 import { useUIStore } from "../../store/uiStore";
@@ -12,6 +12,7 @@ export function Toolbar() {
 
   return (
     <div
+      data-tauri-drag-region
       style={{
         height: "var(--toolbar-height)",
         background: "var(--bg-surface)",
