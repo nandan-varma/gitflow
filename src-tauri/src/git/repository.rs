@@ -2,6 +2,14 @@ use serde::Serialize;
 use crate::error::AppError;
 
 #[derive(Debug, Serialize)]
+pub struct TagEntry {
+    pub name: String,
+    pub target_oid: String,
+    pub is_annotated: bool,
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
 pub struct RepoInfo {
     pub path: String,
     pub head_branch: Option<String>,
@@ -64,4 +72,24 @@ pub fn get_repo_info(repo: &git2::Repository) -> Result<RepoInfo, AppError> {
         is_empty: repo.is_empty().unwrap_or(false),
         state: state.to_string(),
     })
+}
+
+pub fn list_tags(repo: &git2::Repository) -> Result<Vec<TagEntry>, AppError> {
+    let mut tags = Vec::new();
+    repo.tag_foreach(|oid, name| {
+        let name = std::str::from_utf8(name)
+            .unwrap_or("")
+            .trim_start_matches("refs/tags/")
+            .to_string();
+        let (is_annotated, message, target_oid) = if let Ok(tag) = repo.find_tag(oid) {
+            let peeled = tag.target().ok().map(|t| t.id()).unwrap_or(oid);
+            (true, tag.message().map(|m| m.trim().to_string()), peeled.to_string())
+        } else {
+            (false, None, oid.to_string())
+        };
+        tags.push(TagEntry { name, target_oid, is_annotated, message });
+        true
+    })?;
+    tags.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(tags)
 }

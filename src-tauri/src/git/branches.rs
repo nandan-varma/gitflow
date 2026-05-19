@@ -157,3 +157,49 @@ pub fn abort_merge(repo: &git2::Repository) -> Result<(), AppError> {
     repo.reset(head_commit.as_object(), git2::ResetType::Hard, Some(&mut checkout))?;
     Ok(())
 }
+
+#[derive(Debug, Serialize)]
+#[serde(tag = "type")]
+pub enum RebaseOutcome {
+    Success,
+    Conflicts { current_step: usize, total_steps: usize },
+}
+
+pub fn start_rebase(repo: &git2::Repository, upstream_name: &str) -> Result<RebaseOutcome, AppError> {
+    let upstream = repo.find_branch(upstream_name, git2::BranchType::Local)?;
+    let upstream_ac = repo.reference_to_annotated_commit(upstream.get())?;
+    let sig = repo.signature()?;
+    let mut rebase = repo.rebase(None, Some(&upstream_ac), None, None)?;
+    process_rebase_ops(repo, &mut rebase, &sig)
+}
+
+pub fn continue_rebase(repo: &git2::Repository) -> Result<RebaseOutcome, AppError> {
+    let sig = repo.signature()?;
+    let mut rebase = repo.open_rebase(None)?;
+    rebase.commit(None, &sig, None)?;
+    process_rebase_ops(repo, &mut rebase, &sig)
+}
+
+pub fn abort_rebase(repo: &git2::Repository) -> Result<(), AppError> {
+    let mut rebase = repo.open_rebase(None)?;
+    Ok(rebase.abort()?)
+}
+
+fn process_rebase_ops(
+    repo: &git2::Repository,
+    rebase: &mut git2::Rebase,
+    sig: &git2::Signature,
+) -> Result<RebaseOutcome, AppError> {
+    let total = rebase.len();
+    let mut current_step = 0usize;
+    while let Some(op) = rebase.next() {
+        op?;
+        if repo.index()?.has_conflicts() {
+            return Ok(RebaseOutcome::Conflicts { current_step, total_steps: total });
+        }
+        rebase.commit(None, sig, None)?;
+        current_step += 1;
+    }
+    rebase.finish(None)?;
+    Ok(RebaseOutcome::Success)
+}

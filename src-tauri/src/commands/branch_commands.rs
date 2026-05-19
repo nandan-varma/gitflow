@@ -3,7 +3,8 @@ use crate::{
     error::AppError,
     git::branches::{
         list_branches, create_branch, switch_branch, delete_branch, merge_branch, abort_merge,
-        BranchInfo, MergeResult,
+        start_rebase, continue_rebase, abort_rebase,
+        BranchInfo, MergeResult, RebaseOutcome,
     },
     state::AppState,
 };
@@ -56,4 +57,25 @@ pub async fn cmd_merge_branch(
 pub async fn cmd_abort_merge(state: State<'_, AppState>) -> Result<(), AppError> {
     let repo = state.open_repo()?;
     abort_merge(&repo)
+}
+
+#[tauri::command]
+pub async fn cmd_rebase_branch(
+    upstream: String,
+    state: State<'_, AppState>,
+) -> Result<RebaseOutcome, AppError> {
+    let repo = state.open_repo()?;
+    start_rebase(&repo, &upstream)
+}
+
+#[tauri::command]
+pub async fn cmd_continue_rebase(state: State<'_, AppState>) -> Result<RebaseOutcome, AppError> {
+    let repo = state.open_repo()?;
+    continue_rebase(&repo)
+}
+
+#[tauri::command]
+pub async fn cmd_abort_rebase(state: State<'_, AppState>) -> Result<(), AppError> {
+    let repo = state.open_repo()?;
+    abort_rebase(&repo)
 }

@@ -7,12 +7,12 @@ mod commands;
 use state::AppState;
 use tauri::Emitter;
 use commands::{
-    repo_commands::{open_repository, get_current_repo_info, cmd_get_status},
+    repo_commands::{open_repository, get_current_repo_info, cmd_get_status, cmd_list_tags},
     graph_commands::{cmd_get_commit_graph, cmd_get_commit_detail},
     diff_commands::{cmd_get_diff_workdir, cmd_get_diff_staged, cmd_get_diff_commit},
     staging_commands::{cmd_stage_file, cmd_unstage_file, cmd_stage_hunk, cmd_unstage_hunk, cmd_discard_changes},
     commit_commands::{cmd_create_commit, cmd_amend_commit},
-    branch_commands::{cmd_list_branches, cmd_create_branch, cmd_switch_branch, cmd_delete_branch, cmd_merge_branch, cmd_abort_merge},
+    branch_commands::{cmd_list_branches, cmd_create_branch, cmd_switch_branch, cmd_delete_branch, cmd_merge_branch, cmd_abort_merge, cmd_rebase_branch, cmd_continue_rebase, cmd_abort_rebase},
     stash_commands::{cmd_list_stashes, cmd_stash_push, cmd_stash_apply, cmd_stash_pop, cmd_stash_drop},
     conflict_commands::{cmd_get_conflicts, cmd_get_conflict_detail, cmd_resolve_conflict},
 };
@@ -53,6 +53,10 @@ pub fn run() {
             cmd_delete_branch,
             cmd_merge_branch,
             cmd_abort_merge,
+            cmd_rebase_branch,
+            cmd_continue_rebase,
+            cmd_abort_rebase,
+            cmd_list_tags,
             cmd_list_stashes,
             cmd_stash_push,
             cmd_stash_apply,

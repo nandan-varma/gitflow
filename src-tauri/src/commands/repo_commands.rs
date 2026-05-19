@@ -2,7 +2,7 @@ use tauri::{AppHandle, Emitter, State};
 use crate::{
     error::AppError,
     git::{
-        repository::{get_repo_info, open_repo, RepoInfo},
+        repository::{get_repo_info, list_tags, open_repo, RepoInfo, TagEntry},
         status::{get_status, FileStatus},
     },
     state::AppState,
@@ -38,4 +38,10 @@ pub async fn get_current_repo_info(state: State<'_, AppState>) -> Result<RepoInf
 pub async fn cmd_get_status(state: State<'_, AppState>) -> Result<Vec<FileStatus>, AppError> {
     let repo = state.open_repo()?;
     get_status(&repo)
+}
+
+#[tauri::command]
+pub async fn cmd_list_tags(state: State<'_, AppState>) -> Result<Vec<TagEntry>, AppError> {
+    let repo = state.open_repo()?;
+    list_tags(&repo)
 }
