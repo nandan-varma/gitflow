@@ -14,6 +14,7 @@ export const queryKeys = {
   repoInfo: ["repo", "info"] as const,
   status: ["status"] as const,
   branches: ["branches"] as const,
+  tags: ["tags"] as const,
   stashes: ["stashes"] as const,
   conflicts: ["conflicts"] as const,
   graph: (limit: number, offset: number) => ["graph", limit, offset] as const,

@@ -2,6 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { ipc } from "../lib/ipc";
 import { queryClient, queryKeys } from "../lib/queryClient";
 import { useRepoStore } from "../store/repoStore";
+import { useUIStore } from "../store/uiStore";
 
 export function useBranches() {
   const currentRepoPath = useRepoStore((s) => s.currentRepoPath);
@@ -55,6 +56,53 @@ export function useMergeBranch() {
       queryClient.invalidateQueries({ queryKey: ["status"] });
       queryClient.invalidateQueries({ queryKey: ["graph"] });
       queryClient.invalidateQueries({ queryKey: ["conflicts"] });
+    },
+  });
+}
+
+export function useRebaseBranch() {
+  const setActiveView = useUIStore((s) => s.setActiveView);
+  return useMutation({
+    mutationFn: (upstream: string) => ipc.rebaseBranch(upstream),
+    onSuccess: (outcome) => {
+      if (outcome.type === "Conflicts") {
+        setActiveView("conflicts");
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["repo"] });
+        queryClient.invalidateQueries({ queryKey: ["graph"] });
+        queryClient.invalidateQueries({ queryKey: ["status"] });
+        queryClient.invalidateQueries({ queryKey: ["branches"] });
+      }
+    },
+  });
+}
+
+export function useContinueRebase() {
+  const setActiveView = useUIStore((s) => s.setActiveView);
+  return useMutation({
+    mutationFn: () => ipc.continueRebase(),
+    onSuccess: (outcome) => {
+      if (outcome.type === "Conflicts") {
+        setActiveView("conflicts");
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["repo"] });
+        queryClient.invalidateQueries({ queryKey: ["graph"] });
+        queryClient.invalidateQueries({ queryKey: ["status"] });
+        queryClient.invalidateQueries({ queryKey: ["branches"] });
+        queryClient.invalidateQueries({ queryKey: ["conflicts"] });
+      }
+    },
+  });
+}
+
+export function useAbortRebase() {
+  return useMutation({
+    mutationFn: () => ipc.abortRebase(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["repo"] });
+      queryClient.invalidateQueries({ queryKey: ["graph"] });
+      queryClient.invalidateQueries({ queryKey: ["status"] });
+      queryClient.invalidateQueries({ queryKey: ["branches"] });
     },
   });
 }

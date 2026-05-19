@@ -58,6 +58,17 @@ export interface ConflictDetail {
   conflicts: ConflictBlock[];
 }
 
+export interface TagEntry {
+  name: string;
+  target_oid: string;
+  is_annotated: boolean;
+  message: string | null;
+}
+
+export type RebaseOutcome =
+  | { type: "Success" }
+  | { type: "Conflicts"; current_step: number; total_steps: number };
+
 export interface CommandLogEntry {
   id: string;
   command: string;

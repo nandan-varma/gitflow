@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { RepoInfo, FileStatus, BranchInfo, StashEntry, MergeResult, ConflictEntry, ConflictDetail } from "../types/git";
+import type { RepoInfo, FileStatus, BranchInfo, StashEntry, MergeResult, ConflictEntry, ConflictDetail, TagEntry, RebaseOutcome } from "../types/git";
 import type { FileDiff, DiffLine } from "../types/diff";
 import type { GraphPage, CommitDetail } from "../types/graph";
 
@@ -72,6 +72,18 @@ export const ipc = {
 
   abortMerge: () =>
     invoke<void>("cmd_abort_merge"),
+
+  rebaseBranch: (upstream: string) =>
+    invoke<RebaseOutcome>("cmd_rebase_branch", { upstream }),
+
+  continueRebase: () =>
+    invoke<RebaseOutcome>("cmd_continue_rebase"),
+
+  abortRebase: () =>
+    invoke<void>("cmd_abort_rebase"),
+
+  listTags: () =>
+    invoke<TagEntry[]>("cmd_list_tags"),
 
   // Stash
   listStashes: () =>
