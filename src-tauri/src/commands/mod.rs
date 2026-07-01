@@ -6,3 +6,5 @@ pub mod commit_commands;
 pub mod branch_commands;
 pub mod stash_commands;
 pub mod conflict_commands;
+pub mod remote_commands;
+pub mod gh_commands;

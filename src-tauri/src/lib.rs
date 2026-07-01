@@ -15,6 +15,8 @@ use commands::{
     branch_commands::{cmd_list_branches, cmd_create_branch, cmd_switch_branch, cmd_delete_branch, cmd_merge_branch, cmd_abort_merge, cmd_rebase_branch, cmd_continue_rebase, cmd_abort_rebase},
     stash_commands::{cmd_list_stashes, cmd_stash_push, cmd_stash_apply, cmd_stash_pop, cmd_stash_drop},
     conflict_commands::{cmd_get_conflicts, cmd_get_conflict_detail, cmd_resolve_conflict},
+    remote_commands::{cmd_git_fetch, cmd_git_push, cmd_git_pull},
+    gh_commands::{cmd_gh_pr_list, cmd_gh_pr_view, cmd_gh_pr_create, cmd_gh_pr_checkout, cmd_gh_pr_open, cmd_gh_pr_merge},
 };
 
 use tokio::sync::mpsc;
@@ -71,6 +73,15 @@ pub fn run() {
             cmd_get_conflicts,
             cmd_get_conflict_detail,
             cmd_resolve_conflict,
+            cmd_git_fetch,
+            cmd_git_push,
+            cmd_git_pull,
+            cmd_gh_pr_list,
+            cmd_gh_pr_view,
+            cmd_gh_pr_create,
+            cmd_gh_pr_checkout,
+            cmd_gh_pr_open,
+            cmd_gh_pr_merge,
         ])
         .setup(|app| {
             // Forward command log entries to the frontend as Tauri events

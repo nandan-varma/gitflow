@@ -1,14 +1,18 @@
 import React, { useState } from "react";
-import { GitBranch, ChevronDown, ChevronRight, Plus, MoreHorizontal, Trash2, Merge } from "lucide-react";
+import { GitBranch, ChevronDown, ChevronRight, Plus, Trash2, Merge } from "lucide-react";
 import { useBranches, useSwitchBranch, useDeleteBranch } from "../../hooks/useBranches";
+import { usePullRequests } from "../../hooks/useGitHub";
 import { useUIStore } from "../../store/uiStore";
 import type { BranchInfo } from "../../types/git";
+import type { PullRequest } from "../../types/github";
 
 export function BranchList() {
   const [collapsed, setCollapsed] = useState(false);
   const { data: branches = [] } = useBranches();
+  const { data: prs = [] } = usePullRequests();
   const { openDialog } = useUIStore();
 
+  const prByBranch = Object.fromEntries(prs.map((pr) => [pr.headRefName, pr]));
   const local = branches.filter((b) => !b.is_remote);
   const remote = branches.filter((b) => b.is_remote);
 
@@ -48,7 +52,7 @@ export function BranchList() {
       {!collapsed && (
         <div>
           {local.map((b) => (
-            <BranchItem key={b.name} branch={b} />
+            <BranchItem key={b.name} branch={b} pr={prByBranch[b.name]} />
           ))}
           {remote.length > 0 && (
             <div style={{ padding: "4px 12px 2px", fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
@@ -64,7 +68,7 @@ export function BranchList() {
   );
 }
 
-function BranchItem({ branch, isRemote = false }: { branch: BranchInfo; isRemote?: boolean }) {
+function BranchItem({ branch, isRemote = false, pr }: { branch: BranchInfo; isRemote?: boolean; pr?: PullRequest }) {
   const switchBranch = useSwitchBranch();
   const deleteBranch = useDeleteBranch();
   const { openDialog } = useUIStore();
@@ -105,6 +109,15 @@ function BranchItem({ branch, isRemote = false }: { branch: BranchInfo; isRemote
         <span style={{ fontSize: 10, color: "var(--text-muted)", flexShrink: 0 }}>
           {branch.ahead > 0 && `↑${branch.ahead}`}
           {branch.behind > 0 && ` ↓${branch.behind}`}
+        </span>
+      )}
+      {pr && !hovering && (
+        <span style={{
+          fontSize: 9, padding: "0 4px", borderRadius: 8, flexShrink: 0,
+          background: pr.reviewDecision === "APPROVED" ? "rgba(76,175,80,0.2)" : "rgba(76,139,245,0.2)",
+          color: pr.reviewDecision === "APPROVED" ? "var(--success)" : "var(--accent)",
+        }}>
+          #{pr.number}
         </span>
       )}
       {hovering && !branch.is_head && !isRemote && (

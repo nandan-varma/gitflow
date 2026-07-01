@@ -23,4 +23,6 @@ export const queryKeys = {
   diffStaged: (path: string) => ["diff", "staged", path] as const,
   diffCommit: (oid: string, path: string) => ["diff", "commit", oid, path] as const,
   conflictDetail: (path: string) => ["conflict", path] as const,
+  pullRequests: ["github", "prs"] as const,
+  pullRequestDetail: (number: number) => ["github", "pr", number] as const,
 };

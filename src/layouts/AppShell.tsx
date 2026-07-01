@@ -9,6 +9,7 @@ import { ContextPanel } from "../components/context/ContextPanel";
 import { CommandLog } from "../components/commandlog/CommandLog";
 import { ConflictEditor } from "../components/conflict/ConflictEditor";
 import { StashManager } from "../components/stash/StashManager";
+import { PullRequestsView } from "../components/pullrequests/PullRequestsView";
 import { BranchCreateDialog } from "../components/branches/BranchCreateDialog";
 import { MergeDialog } from "../components/branches/MergeDialog";
 import { RebaseDialog } from "../components/branches/RebaseDialog";
@@ -176,6 +177,11 @@ export function AppShell() {
           {activeView === "stash" && (
             <ErrorBoundary label="Stash error">
               <StashManager />
+            </ErrorBoundary>
+          )}
+          {activeView === "pull-requests" && (
+            <ErrorBoundary label="Pull requests error">
+              <PullRequestsView />
             </ErrorBoundary>
           )}
           {activeView === "settings" && <SettingsPage />}

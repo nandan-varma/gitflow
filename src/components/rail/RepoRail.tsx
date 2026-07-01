@@ -1,5 +1,5 @@
 import React from "react";
-import { GitMerge, Layers, Archive } from "lucide-react";
+import { GitMerge, Layers, Archive, GitPullRequest } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useUIStore } from "../../store/uiStore";
 import { useRepoStore } from "../../store/repoStore";
@@ -31,6 +31,7 @@ export function RepoRail() {
           <NavIcon icon={<GitMerge size={16} />} active={activeView === "graph"} onClick={() => setActiveView("graph")} title="Commit Graph" />
           <NavIcon icon={<Layers size={16} />}   active={activeView === "staging"} onClick={() => setActiveView("staging")} title="Staging" />
           <NavIcon icon={<Archive size={16} />}  active={activeView === "stash"} onClick={() => setActiveView("stash")} title="Stashes" />
+          <NavIcon icon={<GitPullRequest size={16} />} active={activeView === "pull-requests"} onClick={() => setActiveView("pull-requests")} title="Pull Requests" />
         </div>
       </aside>
     );
@@ -49,6 +50,7 @@ export function RepoRail() {
         <NavItem icon={<GitMerge size={14} />} label="Commit Graph" active={activeView === "graph"} onClick={() => setActiveView("graph")} />
         <NavItem icon={<Layers size={14} />}   label="Staging Area" active={activeView === "staging"} onClick={() => setActiveView("staging")} />
         <NavItem icon={<Archive size={14} />}  label="Stashes"      active={activeView === "stash"} onClick={() => setActiveView("stash")} />
+        <NavItem icon={<GitPullRequest size={14} />} label="Pull Requests" active={activeView === "pull-requests"} onClick={() => setActiveView("pull-requests")} />
       </section>
 
       {/* Scrollable content */}

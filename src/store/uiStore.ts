@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-type ActiveView = "graph" | "staging" | "diff" | "conflicts" | "stash" | "settings";
+type ActiveView = "graph" | "staging" | "diff" | "conflicts" | "stash" | "settings" | "pull-requests";
 type ActiveDialog = null | "branch-create" | "merge" | "rebase" | "stash-push" | "branch-delete" | "about";
 
 interface UIStore {

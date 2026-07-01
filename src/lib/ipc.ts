@@ -113,4 +113,33 @@ export const ipc = {
 
   resolveConflict: (path: string, resolution: string) =>
     invoke<void>("cmd_resolve_conflict", { path, resolution }),
+
+  // Remote (git CLI)
+  gitFetch: () =>
+    invoke<string>("cmd_git_fetch"),
+
+  gitPush: (branch: string, setUpstream: boolean) =>
+    invoke<string>("cmd_git_push", { branch, setUpstream }),
+
+  gitPull: (rebase = true) =>
+    invoke<string>("cmd_git_pull", { rebase }),
+
+  // GitHub (gh CLI)
+  ghPrList: () =>
+    invoke<string>("cmd_gh_pr_list"),
+
+  ghPrView: (number: number) =>
+    invoke<string>("cmd_gh_pr_view", { number }),
+
+  ghPrCreate: (title: string, body: string, base: string, draft: boolean) =>
+    invoke<string>("cmd_gh_pr_create", { title, body, base, draft }),
+
+  ghPrCheckout: (number: number) =>
+    invoke<void>("cmd_gh_pr_checkout", { number }),
+
+  ghPrOpen: (number: number) =>
+    invoke<void>("cmd_gh_pr_open", { number }),
+
+  ghPrMerge: (number: number, strategy: string, deleteBranch: boolean) =>
+    invoke<void>("cmd_gh_pr_merge", { number, strategy, deleteBranch }),
 };
