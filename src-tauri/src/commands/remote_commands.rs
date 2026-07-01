@@ -9,6 +9,10 @@ pub struct RebaseStep {
     pub message: String,
 }
 
+pub fn truncate_stderr(stderr: &str) -> String {
+    stderr.lines().next().unwrap_or(stderr).to_string()
+}
+
 async fn run_git(args: &[&str], state: &AppState) -> Result<String, AppError> {
     let path = state.repo_path.lock().unwrap().clone().ok_or(AppError::NoRepository)?;
     let out = tokio::process::Command::new("git")
@@ -20,7 +24,7 @@ async fn run_git(args: &[&str], state: &AppState) -> Result<String, AppError> {
     if out.status.success() {
         Ok(String::from_utf8_lossy(&out.stdout).to_string())
     } else {
-        Err(AppError::Other(String::from_utf8_lossy(&out.stderr).to_string()))
+        Err(AppError::Other(truncate_stderr(&String::from_utf8_lossy(&out.stderr))))
     }
 }
 

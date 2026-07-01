@@ -12,7 +12,7 @@ pub async fn cmd_get_commit_graph(
     state: State<'_, AppState>,
 ) -> Result<GraphPage, AppError> {
     let t = std::time::Instant::now();
-    let r = (|| { let repo = state.open_repo()?; get_commit_graph(&repo, limit.max(1).min(500), offset) })();
+    let r = (|| { let repo = state.open_repo()?; get_commit_graph(&repo, limit.clamp(1, 500), offset) })();
     state.log_command("cmd_get_commit_graph", t, &r);
     r
 }
@@ -35,7 +35,7 @@ pub async fn cmd_get_file_history(
     state: State<'_, AppState>,
 ) -> Result<Vec<FileHistoryEntry>, AppError> {
     let t = std::time::Instant::now();
-    let r = (|| { let repo = state.open_repo()?; get_file_history(&repo, &path, limit.max(1).min(500)) })();
+    let r = (|| { let repo = state.open_repo()?; get_file_history(&repo, &path, limit.clamp(1, 500)) })();
     state.log_command("cmd_get_file_history", t, &r);
     r
 }

@@ -1,6 +1,19 @@
 use serde::Serialize;
 use crate::error::AppError;
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_stash_list_on_empty_repo() {
+        let mut repo = git2::Repository::init(std::env::temp_dir().join("test_stash_empty")).unwrap();
+        let result = list_stashes(&mut repo).unwrap();
+        assert!(result.is_empty());
+        let _ = std::fs::remove_dir_all(repo.path().parent().unwrap());
+    }
+}
+
 #[derive(Debug, Serialize, Clone)]
 pub struct StashEntry {
     pub index: usize,
@@ -11,15 +24,23 @@ pub struct StashEntry {
 
 pub fn list_stashes(repo: &mut git2::Repository) -> Result<Vec<StashEntry>, AppError> {
     let mut entries = Vec::new();
-    repo.stash_foreach(|index, message, oid| {
+    let stash_oids: Vec<git2::Oid> = {
+        let mut oids = Vec::new();
+        repo.stash_foreach(|_index, _message, oid| {
+            oids.push(*oid);
+            true
+        })?;
+        oids
+    };
+    for (i, oid) in stash_oids.into_iter().enumerate() {
+        let commit = repo.find_commit(oid)?;
         entries.push(StashEntry {
-            index,
-            message: message.to_string(),
+            index: i,
+            message: commit.summary().unwrap_or("WIP").to_string(),
             oid: oid.to_string(),
-            timestamp: 0,
+            timestamp: commit.time().seconds(),
         });
-        true
-    })?;
+    }
     Ok(entries)
 }
 

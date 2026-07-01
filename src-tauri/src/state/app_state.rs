@@ -30,11 +30,6 @@ impl AppState {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn repo_path(&self) -> Option<PathBuf> {
-        self.repo_path.lock().unwrap().clone()
-    }
-
     pub fn set_repo_path(&self, path: PathBuf) {
         *self.repo_path.lock().unwrap() = Some(path);
     }

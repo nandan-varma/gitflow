@@ -29,7 +29,7 @@ pub fn list_branches(repo: &git2::Repository) -> Result<Vec<BranchInfo>, AppErro
         let is_remote = branch_type == git2::BranchType::Remote;
         let reference = branch.get();
         let oid = reference.target().map(|o| o.to_string()).unwrap_or_default();
-        let is_head = head_oid.map_or(false, |h| Some(h) == reference.target());
+        let is_head = head_oid.is_some_and(|h| Some(h) == reference.target());
 
         let upstream_name = branch
             .upstream()
@@ -93,12 +93,23 @@ pub fn switch_branch(repo: &git2::Repository, name: &str) -> Result<(), AppError
 
 pub fn delete_branch(repo: &git2::Repository, name: &str, force: bool) -> Result<(), AppError> {
     let mut branch = repo.find_branch(name, git2::BranchType::Local)?;
-    if force {
-        branch.delete()?;
-    } else {
-        // Check if fully merged
-        branch.delete()?;
+    if !force {
+        let branch_oid = branch.get().target()
+            .ok_or_else(|| AppError::Git("Branch has no target".into()))?;
+        if let Ok(head) = repo.head() {
+            if let Some(head_oid) = head.target() {
+                let is_merged = repo.graph_ahead_behind(branch_oid, head_oid)
+                    .map(|(ahead, _)| ahead == 0)
+                    .unwrap_or(false);
+                if !is_merged {
+                    return Err(AppError::Git(format!(
+                        "Branch '{name}' is not fully merged. Use force delete to override."
+                    )));
+                }
+            }
+        }
     }
+    branch.delete()?;
     Ok(())
 }
 

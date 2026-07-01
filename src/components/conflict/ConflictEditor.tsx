@@ -12,9 +12,13 @@ export function ConflictEditor() {
     queryFn: () => ipc.getConflicts(),
   });
 
-  const [activeConflictPath, setActiveConflictPath] = useState<string | null>(
-    conflicts[0]?.path ?? null
-  );
+  const [activeConflictPath, setActiveConflictPath] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!activeConflictPath && conflicts.length > 0) {
+      setActiveConflictPath(conflicts[0].path);
+    }
+  }, [conflicts, activeConflictPath]);
 
   const activePath = activeConflictPath ?? conflicts[0]?.path;
 

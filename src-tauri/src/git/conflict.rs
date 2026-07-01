@@ -85,8 +85,8 @@ pub fn get_conflict_detail(repo: &git2::Repository, path: &str) -> Result<Confli
                 theirs_lines: current_theirs.clone(),
                 before_lines: current_before.clone(),
             });
-            ours_lines.extend(current_ours.drain(..));
-            theirs_lines.extend(current_theirs.drain(..));
+            ours_lines.append(&mut current_ours);
+            theirs_lines.append(&mut current_theirs);
             state = State::Normal;
         } else {
             match state {

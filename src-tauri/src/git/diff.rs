@@ -2,6 +2,8 @@ use serde::Serialize;
 use std::{cell::RefCell, rc::Rc};
 use crate::error::AppError;
 
+
+
 #[derive(Debug, Serialize)]
 pub struct FileDiff {
     pub path: String,

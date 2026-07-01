@@ -3,6 +3,7 @@ use std::{
     sync::{Arc, atomic::{AtomicBool, Ordering}},
     time::Duration,
 };
+use log::{error, warn};
 use notify_debouncer_full::{new_debouncer, notify::{RecursiveMode, Watcher}};
 use tauri::{AppHandle, Emitter};
 use serde::Serialize;
@@ -25,13 +26,13 @@ pub fn start_watcher(
         let mut debouncer = match new_debouncer(Duration::from_millis(150), None, tx) {
             Ok(d) => d,
             Err(e) => {
-                eprintln!("Failed to create watcher: {e}");
+                error!("Failed to create watcher: {e}");
                 return;
             }
         };
 
         if let Err(e) = debouncer.watcher().watch(&repo_path, RecursiveMode::Recursive) {
-            eprintln!("Failed to watch {repo_path:?}: {e}");
+            error!("Failed to watch {repo_path:?}: {e}");
             return;
         }
 
@@ -55,7 +56,7 @@ pub fn start_watcher(
                 }
                 Ok(Err(errors)) => {
                     for e in errors {
-                        eprintln!("Watch error: {e:?}");
+                        warn!("Watch error: {e:?}");
                     }
                 }
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,

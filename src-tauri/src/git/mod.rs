@@ -7,3 +7,4 @@ pub mod stash;
 pub mod status;
 pub mod conflict;
 pub mod blame;
+pub mod cherry_pick;

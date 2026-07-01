@@ -12,7 +12,7 @@ async fn run_gh(args: &[&str], state: &AppState) -> Result<String, AppError> {
     if out.status.success() {
         Ok(String::from_utf8_lossy(&out.stdout).to_string())
     } else {
-        Err(AppError::Other(String::from_utf8_lossy(&out.stderr).to_string()))
+        Err(AppError::Other(crate::commands::remote_commands::truncate_stderr(&String::from_utf8_lossy(&out.stderr))))
     }
 }
 

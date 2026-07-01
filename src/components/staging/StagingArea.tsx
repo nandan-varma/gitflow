@@ -23,13 +23,13 @@ export function StagingArea() {
   const showStagedDiff = selectedFileStatus?.staged && stagedDiff;
 
   const stageAll = async () => {
-    for (const f of unstagedFiles) await ipc.stageFile(f.path);
+    await Promise.all(unstagedFiles.map((f) => ipc.stageFile(f.path)));
     queryClient.invalidateQueries({ queryKey: ["status"] });
     queryClient.invalidateQueries({ queryKey: ["diff"] });
   };
 
   const unstageAll = async () => {
-    for (const f of stagedFiles) await ipc.unstageFile(f.path);
+    await Promise.all(stagedFiles.map((f) => ipc.unstageFile(f.path)));
     queryClient.invalidateQueries({ queryKey: ["status"] });
     queryClient.invalidateQueries({ queryKey: ["diff"] });
   };

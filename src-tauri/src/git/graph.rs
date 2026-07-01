@@ -56,11 +56,9 @@ pub fn get_commit_graph(
     // Topological walk with date sorting
     let mut walk = repo.revwalk()?;
     walk.push_head().ok();
-    for r in repo.references()? {
-        if let Ok(r) = r {
-            if let Some(oid) = r.target() {
-                walk.push(oid).ok();
-            }
+    for r in repo.references()?.flatten() {
+        if let Some(oid) = r.target() {
+            walk.push(oid).ok();
         }
     }
     walk.set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME)?;
@@ -90,7 +88,7 @@ pub fn get_commit_graph(
         // Find which lane this commit belongs to (if any active lane expects it)
         let assigned_lane = active_lanes
             .iter()
-            .position(|slot| slot.as_ref().map_or(false, |(co, _)| co == &oid_str));
+            .position(|slot| slot.as_ref().is_some_and(|(co, _)| co == &oid_str));
 
         let (lane, color_index) = if let Some(idx) = assigned_lane {
             let (_, color) = active_lanes[idx].take().unwrap();
@@ -119,7 +117,7 @@ pub fn get_commit_graph(
             // Check if parent is already being tracked by another lane (convergence)
             let existing = active_lanes
                 .iter()
-                .position(|s| s.as_ref().map_or(false, |(co, _)| co == parent_oid));
+                .position(|s| s.as_ref().is_some_and(|(co, _)| co == parent_oid));
 
             let (edge_lane, edge_color) = if let Some(existing_lane) = existing {
                 // Parent already tracked — edge converges to that lane
@@ -163,9 +161,11 @@ pub fn get_commit_graph(
         let author = commit.author();
         let refs = ref_map.get(&oid_str).cloned().unwrap_or_default();
 
-        // Deduplicate refs
-        let mut unique_refs = refs;
-        unique_refs.dedup();
+        // Deduplicate refs (non-consecutive too)
+        let unique_refs: Vec<String> = {
+            let set: std::collections::BTreeSet<String> = refs.into_iter().collect();
+            set.iter().cloned().collect()
+        };
 
         nodes.push(GraphNode {
             oid: oid_str,
@@ -311,10 +311,8 @@ pub fn get_file_history(
 ) -> Result<Vec<FileHistoryEntry>, AppError> {
     let mut walk = repo.revwalk()?;
     walk.push_head().ok();
-    for r in repo.references()? {
-        if let Ok(r) = r {
-            if let Some(oid) = r.target() { walk.push(oid).ok(); }
-        }
+    for r in repo.references()?.flatten() {
+        if let Some(oid) = r.target() { walk.push(oid).ok(); }
     }
     walk.set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME)?;
 
@@ -325,8 +323,19 @@ pub fn get_file_history(
         let oid = oid_result?;
         let commit = repo.find_commit(oid)?;
         let tree = commit.tree()?;
-        let parent_tree = commit.parent(0).ok().and_then(|p| p.tree().ok());
 
+        // Quick check: does the path exist in this commit or its parent?
+        // If not, skip the expensive diff entirely.
+        let in_current = tree.get_path(p).is_ok();
+        let in_parent = commit.parent(0).ok()
+            .and_then(|pc| pc.tree().ok())
+            .map(|pt| pt.get_path(p).is_ok())
+            .unwrap_or(false);
+        if !in_current && !in_parent {
+            continue;
+        }
+
+        let parent_tree = commit.parent(0).ok().and_then(|p| p.tree().ok());
         let mut opts = git2::DiffOptions::new();
         opts.pathspec(path);
         let diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), Some(&mut opts))?;

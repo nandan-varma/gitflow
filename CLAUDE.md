@@ -22,7 +22,18 @@ cargo check
 cargo clippy
 ```
 
-No test suite yet. Rust logic can be spot-checked with `cargo check` and `clippy`.
+## Tests
+
+```bash
+# Frontend unit tests
+pnpm test            # vitest run
+
+# Rust unit tests
+cargo test            # from src-tauri/
+
+# Watch mode
+pnpm test:watch
+```
 
 ## Architecture
 
