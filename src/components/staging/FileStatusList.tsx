@@ -4,6 +4,7 @@ import type { FileStatus } from "../../types/git";
 import { ipc, toErrMsg } from "../../lib/ipc";
 import { queryClient } from "../../lib/queryClient";
 import { useUIStore } from "../../store/uiStore";
+import type { MenuItem } from "../../types/contextMenu";
 
 const STATUS_ORDER: Record<string, number> = { conflict: 0, modified: 1, deleted: 2, added: 3, renamed: 4 };
 const basename = (p: string) => p.split("/").pop() ?? p;
@@ -25,7 +26,7 @@ interface Props {
 }
 
 export function FileStatusList({ files, staged, onStageAll, onUnstageAll }: Props) {
-  const { selectedFilePath, selectFile } = useUIStore();
+  const { selectedFilePath, selectFile, showContextMenu, openBlame, openFileHistory } = useUIStore();
   const [error, setError] = React.useState<string | null>(null);
 
   const handleFileAction = async (file: FileStatus) => {
@@ -36,6 +37,17 @@ export function FileStatusList({ files, staged, onStageAll, onUnstageAll }: Prop
       } else {
         await ipc.stageFile(file.path);
       }
+      queryClient.invalidateQueries({ queryKey: ["status"] });
+      queryClient.invalidateQueries({ queryKey: ["diff"] });
+    } catch (e: unknown) {
+      setError(toErrMsg(e));
+    }
+  };
+
+  const handleDiscard = async (file: FileStatus) => {
+    setError(null);
+    try {
+      await ipc.discardChanges(file.path);
       queryClient.invalidateQueries({ queryKey: ["status"] });
       queryClient.invalidateQueries({ queryKey: ["diff"] });
     } catch (e: unknown) {
@@ -125,6 +137,30 @@ export function FileStatusList({ files, staged, onStageAll, onUnstageAll }: Prop
                     cursor: "pointer",
                   }}
                   onClick={() => selectFile(file.path)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    const items: MenuItem[] = staged
+                      ? [
+                          { label: "Unstage File", action: () => handleFileAction(file) },
+                          "separator",
+                        ]
+                      : [
+                          { label: "Stage File", action: () => handleFileAction(file) },
+                          { label: "Discard Changes", danger: true, action: () => handleDiscard(file) },
+                          "separator",
+                        ];
+                    items.push(
+                      { label: "Blame", action: () => openBlame(file.path) },
+                      { label: "File History", action: () => openFileHistory(file.path) },
+                      "separator",
+                      { label: "Open in VS Code", action: () => { ipc.openInVscode(file.path).catch(() => {}); } },
+                      { label: "Reveal in Finder", action: () => { ipc.revealInFinder(file.path).catch(() => {}); } },
+                      { label: "Open Terminal Here", action: () => { ipc.openInTerminal(file.path).catch(() => {}); } },
+                      "separator",
+                      { label: "Copy Path", action: () => { navigator.clipboard.writeText(file.path).catch(() => {}); } },
+                    );
+                    showContextMenu(e.clientX, e.clientY, items);
+                  }}
                 >
                   {STATUS_ICON[file.status]}
                   <span style={{ flex: 1, fontSize: 12, fontFamily: "var(--font-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

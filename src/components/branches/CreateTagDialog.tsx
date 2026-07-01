@@ -1,27 +1,30 @@
 import React, { useState } from "react";
-import { useCreateBranch, useSwitchBranch } from "../../hooks/useBranches";
 import { useUIStore } from "../../store/uiStore";
-import { toErrMsg } from "../../lib/ipc";
+import { ipc, toErrMsg } from "../../lib/ipc";
+import { queryClient } from "../../lib/queryClient";
 
-export function BranchCreateDialog() {
-  const [name, setName] = useState("");
-  const [error, setError] = useState<string | null>(null);
+export function CreateTagDialog() {
   const { closeDialog, dialogPayload } = useUIStore();
-  const fromOid = typeof dialogPayload === "string" ? dialogPayload : undefined;
-  const create = useCreateBranch();
-  const switchBranch = useSwitchBranch();
+  const oid = typeof dialogPayload === "string" ? dialogPayload : "";
+  const [name, setName] = useState("");
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
 
   const isValid = /^[a-zA-Z0-9._/-]+$/.test(name) && !name.startsWith("-");
 
   const handleCreate = async () => {
-    if (!isValid) return;
+    if (!isValid || !oid) return;
     setError(null);
+    setPending(true);
     try {
-      await create.mutateAsync({ name, fromOid });
-      await switchBranch.mutateAsync(name);
+      await ipc.createTag(name, oid, message || undefined);
+      queryClient.invalidateQueries({ queryKey: ["tags"] });
       closeDialog();
-    } catch (e: unknown) {
+    } catch (e) {
       setError(toErrMsg(e));
+    } finally {
+      setPending(false);
     }
   };
 
@@ -29,38 +32,40 @@ export function BranchCreateDialog() {
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }} onClick={closeDialog}>
       <div style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 8, padding: 20, minWidth: 340, boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 14 }}>
-          Create Branch{fromOid && <span style={{ fontSize: 11, fontWeight: 400, color: "var(--text-muted)", marginLeft: 8 }}>from {fromOid.slice(0, 7)}</span>}
+          Create Tag
+          <span style={{ fontSize: 11, fontWeight: 400, color: "var(--text-muted)", marginLeft: 8 }}>at {oid.slice(0, 7)}</span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-            Branch name
+            Tag name
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="feature/my-feature"
+              placeholder="v1.0.0"
               style={{ display: "block", width: "100%", marginTop: 4, fontFamily: "var(--font-mono)" }}
               autoFocus
               onKeyDown={(e) => e.key === "Enter" && handleCreate()}
             />
           </label>
-          {name && !isValid && (
-            <span style={{ fontSize: 11, color: "var(--danger)" }}>
-              Invalid branch name
-            </span>
-          )}
-          {error && (
-            <span style={{ fontSize: 11, color: "var(--danger)" }}>{error}</span>
-          )}
+          <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+            Message <span style={{ color: "var(--text-muted)" }}>(optional — creates annotated tag)</span>
+            <input
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Release notes…"
+              style={{ display: "block", width: "100%", marginTop: 4 }}
+            />
+          </label>
+          {name && !isValid && <span style={{ fontSize: 11, color: "var(--danger)" }}>Invalid tag name</span>}
+          {error && <span style={{ fontSize: 11, color: "var(--danger)" }}>{error}</span>}
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
-            <button onClick={closeDialog} style={{ padding: "5px 12px", borderRadius: 4, background: "var(--bg-elevated)", color: "var(--text-secondary)", border: "1px solid var(--border)", fontSize: 12 }}>
-              Cancel
-            </button>
+            <button onClick={closeDialog} style={{ padding: "5px 12px", borderRadius: 4, background: "var(--bg-elevated)", color: "var(--text-secondary)", border: "1px solid var(--border)", fontSize: 12 }}>Cancel</button>
             <button
               onClick={handleCreate}
-              disabled={!isValid}
+              disabled={!isValid || pending}
               style={{ padding: "5px 12px", borderRadius: 4, background: isValid ? "var(--accent)" : "var(--bg-elevated)", color: isValid ? "#fff" : "var(--text-muted)", fontSize: 12, fontWeight: 500 }}
             >
-              Create & Switch
+              {pending ? "Creating…" : "Create Tag"}
             </button>
           </div>
         </div>

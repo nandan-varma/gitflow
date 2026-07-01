@@ -61,7 +61,7 @@ export function PullRequestDetail({ pr }: { pr: PullRequest }) {
       {/* Body */}
       <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px" }}>
         {detail?.body ? (
-          <pre style={{ fontSize: 12, color: "var(--text-secondary)", margin: 0, whiteSpace: "pre-wrap", fontFamily: "inherit", lineHeight: 1.5 }}>
+          <pre style={{ fontSize: 12, color: "var(--text-secondary)", margin: 0, whiteSpace: "pre-wrap", fontFamily: "inherit", lineHeight: 1.5, userSelect: "text", WebkitUserSelect: "text" }}>
             {detail.body}
           </pre>
         ) : (

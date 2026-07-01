@@ -6,3 +6,4 @@ pub mod branches;
 pub mod stash;
 pub mod status;
 pub mod conflict;
+pub mod blame;

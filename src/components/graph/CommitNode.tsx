@@ -2,6 +2,10 @@ import React from "react";
 import { laneX, rowY, NODE_RADIUS, ROW_HEIGHT, LANE_WIDTH, laneColor } from "../../lib/graphLayout";
 import { formatRelativeTime } from "../../lib/diffParser";
 import type { GraphNode } from "../../types/graph";
+import { useUIStore } from "../../store/uiStore";
+import { ipc } from "../../lib/ipc";
+import { queryClient } from "../../lib/queryClient";
+import { toErrMsg } from "../../lib/ipc";
 
 interface Props {
   node: GraphNode;
@@ -14,10 +18,31 @@ export function CommitNode({ node, selected, onSelect, laneOffset }: Props) {
   const x = laneX(node.lane);
   const midY = ROW_HEIGHT / 2;
   const color = laneColor(node.color_index);
+  const { showContextMenu, openDialog, openBlame } = useUIStore();
 
   return (
     <div
       onClick={onSelect}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        showContextMenu(e.clientX, e.clientY, [
+          { label: "Copy SHA", action: () => { navigator.clipboard.writeText(node.oid).catch(() => {}); } },
+          { label: `Copy Short SHA (${node.oid.slice(0, 7)})`, action: () => { navigator.clipboard.writeText(node.oid.slice(0, 7)).catch(() => {}); } },
+          "separator",
+          { label: "Create Branch from Here…", action: () => openDialog("branch-create", node.oid) },
+          { label: "Create Tag Here…", action: () => openDialog("tag-create", node.oid) },
+          { label: "Cherry-pick onto Current Branch", action: async () => {
+            try {
+              await ipc.cherryPick(node.oid);
+              queryClient.invalidateQueries({ queryKey: ["graph"] });
+              queryClient.invalidateQueries({ queryKey: ["status"] });
+              queryClient.invalidateQueries({ queryKey: ["branches"] });
+            } catch (e) { alert(`Cherry-pick failed: ${toErrMsg(e)}`); }
+          }},
+          "separator",
+          { label: "Open Repo in VS Code", action: () => { ipc.openInVscode("").catch(() => {}); } },
+        ]);
+      }}
       style={{
         display: "flex",
         alignItems: "center",

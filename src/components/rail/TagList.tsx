@@ -1,15 +1,17 @@
 import React, { useState } from "react";
-import { Tag, ChevronDown, ChevronRight } from "lucide-react";
+import { Tag, ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { ipc } from "../../lib/ipc";
 import { queryKeys } from "../../lib/queryClient";
 import { useRepoStore } from "../../store/repoStore";
 import { useIpcEvent } from "../../hooks/useIpcEvent";
 import { queryClient } from "../../lib/queryClient";
+import { useUIStore } from "../../store/uiStore";
 
 export function TagList() {
   const [collapsed, setCollapsed] = useState(true);
   const currentRepoPath = useRepoStore((s) => s.currentRepoPath);
+  const { showContextMenu, openDialog } = useUIStore();
 
   const { data: tags = [] } = useQuery({
     queryKey: queryKeys.tags,
@@ -41,10 +43,18 @@ export function TagList() {
         {collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
         Tags
         {tags.length > 0 && (
-          <span style={{ marginLeft: "auto", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
+          <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
             {tags.length}
           </span>
         )}
+        <span style={{ marginLeft: "auto" }} />
+        <button
+          onClick={(e) => { e.stopPropagation(); openDialog("tag-create", "HEAD"); }}
+          title="Create tag"
+          style={{ color: "var(--text-muted)", padding: 2 }}
+        >
+          <Plus size={12} />
+        </button>
       </button>
       {!collapsed && (
         <div style={{ padding: "2px 0" }}>

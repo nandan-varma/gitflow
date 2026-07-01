@@ -17,12 +17,13 @@ async fn run_gh(args: &[&str], state: &AppState) -> Result<String, AppError> {
 }
 
 #[tauri::command]
-pub async fn cmd_gh_pr_list(state: State<'_, AppState>) -> Result<String, AppError> {
+pub async fn cmd_gh_pr_list(pr_state: String, state: State<'_, AppState>) -> Result<String, AppError> {
     let t = std::time::Instant::now();
     let r = run_gh(&[
         "pr", "list",
+        "--state", &pr_state,
         "--json", "number,title,state,headRefName,baseRefName,author,reviewDecision,isDraft,createdAt,url,statusCheckRollup",
-        "--limit", "50",
+        "--limit", "100",
     ], &state).await;
     state.log_command("cmd_gh_pr_list", t, &r);
     r
@@ -88,5 +89,47 @@ pub async fn cmd_gh_pr_merge(
     if delete_branch { args.push("--delete-branch"); }
     let r = run_gh(&args, &state).await.map(|_| ());
     state.log_command("cmd_gh_pr_merge", t, &r);
+    r
+}
+
+#[tauri::command]
+pub async fn cmd_gh_issue_list(issue_state: String, state: State<'_, AppState>) -> Result<String, AppError> {
+    let t = std::time::Instant::now();
+    let r = run_gh(&[
+        "issue", "list",
+        "--state", &issue_state,
+        "--json", "number,title,state,author,labels,assignees,createdAt,url,comments",
+        "--limit", "100",
+    ], &state).await;
+    state.log_command("cmd_gh_issue_list", t, &r);
+    r
+}
+
+#[tauri::command]
+pub async fn cmd_gh_issue_view(number: u64, state: State<'_, AppState>) -> Result<String, AppError> {
+    let t = std::time::Instant::now();
+    let num_str = number.to_string();
+    let r = run_gh(&[
+        "issue", "view", &num_str,
+        "--json", "number,title,body,state,author,labels,assignees,createdAt,url",
+    ], &state).await;
+    state.log_command("cmd_gh_issue_view", t, &r);
+    r
+}
+
+#[tauri::command]
+pub async fn cmd_gh_issue_open(number: u64, state: State<'_, AppState>) -> Result<(), AppError> {
+    let t = std::time::Instant::now();
+    let num_str = number.to_string();
+    let r = run_gh(&["issue", "view", &num_str, "--web"], &state).await.map(|_| ());
+    state.log_command("cmd_gh_issue_open", t, &r);
+    r
+}
+
+#[tauri::command]
+pub async fn cmd_gh_issue_create_web(state: State<'_, AppState>) -> Result<(), AppError> {
+    let t = std::time::Instant::now();
+    let r = run_gh(&["issue", "create", "--web"], &state).await.map(|_| ());
+    state.log_command("cmd_gh_issue_create_web", t, &r);
     r
 }

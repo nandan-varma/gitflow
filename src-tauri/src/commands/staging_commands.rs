@@ -1,7 +1,7 @@
 use tauri::State;
 use crate::{
     error::AppError,
-    git::staging::{stage_file, unstage_file, stage_hunk, unstage_hunk, discard_changes, HunkLine},
+    git::staging::{stage_file, unstage_file, stage_hunk, unstage_hunk, discard_changes, discard_lines, HunkLine},
     state::AppState,
 };
 
@@ -53,5 +53,17 @@ pub async fn cmd_discard_changes(
     let t = std::time::Instant::now();
     let r = (|| { let repo = state.open_repo()?; discard_changes(&repo, &path) })();
     state.log_command("cmd_discard_changes", t, &r);
+    r
+}
+
+#[tauri::command]
+pub async fn cmd_discard_lines(
+    path: String,
+    lines: Vec<HunkLine>,
+    state: State<'_, AppState>,
+) -> Result<(), AppError> {
+    let t = std::time::Instant::now();
+    let r = (|| { let repo = state.open_repo()?; discard_lines(&repo, &path, &lines) })();
+    state.log_command("cmd_discard_lines", t, &r);
     r
 }

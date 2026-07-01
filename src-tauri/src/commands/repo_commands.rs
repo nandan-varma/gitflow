@@ -9,6 +9,18 @@ use crate::{
     watcher::start_watcher,
 };
 
+fn git2_create_tag(repo: &git2::Repository, name: &str, target: &str, message: Option<&str>) -> Result<(), AppError> {
+    let obj = repo.revparse_single(target)
+        .map_err(|_| AppError::InvalidArgument(format!("Invalid target: {target}")))?;
+    if let Some(msg) = message.filter(|m| !m.is_empty()) {
+        let sig = repo.signature()?;
+        repo.tag(name, &obj, &sig, msg, false)?;
+    } else {
+        repo.tag_lightweight(name, &obj, false)?;
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn open_repository(
     path: String,
@@ -53,5 +65,18 @@ pub async fn cmd_list_tags(state: State<'_, AppState>) -> Result<Vec<TagEntry>, 
     let t = std::time::Instant::now();
     let r = (|| { let repo = state.open_repo()?; list_tags(&repo) })();
     state.log_command("cmd_list_tags", t, &r);
+    r
+}
+
+#[tauri::command]
+pub async fn cmd_create_tag(
+    name: String,
+    oid: String,
+    message: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<(), AppError> {
+    let t = std::time::Instant::now();
+    let r = (|| { let repo = state.open_repo()?; git2_create_tag(&repo, &name, &oid, message.as_deref()) })();
+    state.log_command("cmd_create_tag", t, &r);
     r
 }

@@ -10,7 +10,7 @@ import {
 import type { GraphNode, GraphEdge } from "../../types/graph";
 import { useRepoStore } from "../../store/repoStore";
 import { open } from "@tauri-apps/plugin-dialog";
-import { FolderOpen, GitBranch } from "lucide-react";
+import { FolderOpen, GitBranch, Search, X } from "lucide-react";
 
 const RECENT_VISIBLE = 5;
 
@@ -96,7 +96,7 @@ function WelcomeScreen() {
 
 export function CommitGraph() {
   const { data, fetchNextPage, hasNextPage, isFetching } = useCommitGraph();
-  const { selectedCommitOid, selectCommit } = useUIStore();
+  const { selectedCommitOid, selectCommit, graphSearch, setGraphSearch } = useUIStore();
   const { currentRepoPath } = useRepoStore();
 
   const parentRef = React.useRef<HTMLDivElement>(null);
@@ -111,13 +111,27 @@ export function CommitGraph() {
     [data]
   );
 
+  // Filter nodes by search query
+  const filteredNodes: GraphNode[] = useMemo(() => {
+    const q = graphSearch.trim().toLowerCase();
+    if (!q) return allNodes;
+    return allNodes.filter(
+      (n) =>
+        n.summary.toLowerCase().includes(q) ||
+        n.author_name.toLowerCase().includes(q) ||
+        n.oid.startsWith(q)
+    );
+  }, [allNodes, graphSearch]);
+
   const totalLanes = useMemo(
     () => data?.pages[0]?.total_lanes ?? 1,
     [data]
   );
 
+  const displayNodes = graphSearch.trim() ? filteredNodes : allNodes;
+
   const virtualizer = useVirtualizer({
-    count: allNodes.length,
+    count: displayNodes.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 10,
@@ -128,9 +142,9 @@ export function CommitGraph() {
   // Build oid → row index map for edge rendering
   const oidToIndex = useMemo(() => {
     const map = new Map<string, number>();
-    allNodes.forEach((n, i) => map.set(n.oid, i));
+    displayNodes.forEach((n, i) => map.set(n.oid, i));
     return map;
-  }, [allNodes]);
+  }, [displayNodes]);
 
   // Only render edges that connect visible rows (with some buffer)
   const firstVisible = virtualItems[0]?.index ?? 0;
@@ -150,6 +164,8 @@ export function CommitGraph() {
     [allEdges, oidToIndex, firstVisible, lastVisible]
   );
 
+  const isSearching = !!graphSearch.trim();
+
   const svgWidth = (totalLanes + 1) * LANE_WIDTH;
   const svgHeight = virtualizer.getTotalSize();
 
@@ -167,19 +183,36 @@ export function CommitGraph() {
   }
 
   return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      {/* Search bar */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", borderBottom: "1px solid var(--border)", flexShrink: 0, background: "var(--bg-surface)" }}>
+        <Search size={12} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
+        <input
+          value={graphSearch}
+          onChange={(e) => setGraphSearch(e.target.value)}
+          placeholder="Search commits…"
+          style={{ flex: 1, fontSize: 12, background: "transparent", border: "none", outline: "none", color: "var(--text-primary)" }}
+        />
+        {graphSearch && (
+          <>
+            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{filteredNodes.length} match{filteredNodes.length !== 1 ? "es" : ""}</span>
+            <button onClick={() => setGraphSearch("")} style={{ color: "var(--text-muted)", padding: 2 }}><X size={12} /></button>
+          </>
+        )}
+      </div>
     <div
       ref={parentRef}
       onScroll={handleScroll}
-      style={{ height: "100%", overflow: "auto", position: "relative" }}
+      style={{ flex: 1, overflow: "auto", position: "relative" }}
     >
-      {/* SVG connector layer */}
+      {/* SVG connector layer — hidden during search to avoid confusing partial edges */}
       <svg
         className="graph-canvas"
         width={svgWidth}
         height={svgHeight}
         style={{ pointerEvents: "none" }}
       >
-        {visibleEdges.map((edge, i) => {
+        {!isSearching && visibleEdges.map((edge, i) => {
           const fromIdx = oidToIndex.get(edge.from_oid);
           const toIdx = oidToIndex.get(edge.to_oid);
           if (fromIdx === undefined) return null;
@@ -207,7 +240,7 @@ export function CommitGraph() {
         }}
       >
         {virtualItems.map((virtualRow) => {
-          const node = allNodes[virtualRow.index];
+          const node = displayNodes[virtualRow.index];
           if (!node) return null;
           return (
             <div
@@ -236,6 +269,7 @@ export function CommitGraph() {
           Loading…
         </div>
       )}
+    </div>
     </div>
   );
 }

@@ -59,6 +59,14 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Re-enable selection only where it makes sense */
+input, textarea, [data-selectable] {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 html, body, #root {

@@ -35,3 +35,36 @@ export interface PullRequestDetail extends PullRequest {
   mergeStateStatus: string;
   labels: { name: string; color: string }[];
 }
+
+export interface IssueLabel {
+  name: string;
+  color: string;
+}
+
+export interface IssueAssignee {
+  login: string;
+}
+
+export interface Issue {
+  number: number;
+  title: string;
+  state: "OPEN" | "CLOSED";
+  author: PRAuthor;
+  labels: IssueLabel[];
+  assignees: IssueAssignee[];
+  createdAt: string;
+  url: string;
+  comments: number;
+}
+
+export interface IssueDetail extends Omit<Issue, "comments"> {
+  body: string;
+}
+
+export type PRState = "open" | "closed" | "merged" | "all";
+export type IssueState = "open" | "closed" | "all";
+export type ActivityType = "both" | "prs" | "issues";
+
+export type ActivityItem =
+  | { kind: "pr"; data: PullRequest }
+  | { kind: "issue"; data: Issue };

@@ -26,6 +26,14 @@ export interface GraphPage {
   has_more: boolean;
 }
 
+export interface ChangedFile {
+  path: string;
+  old_path: string | null;
+  status: "added" | "modified" | "deleted" | "renamed";
+  additions: number;
+  deletions: number;
+}
+
 export interface CommitDetail {
   oid: string;
   summary: string;
@@ -42,4 +50,12 @@ export interface CommitDetail {
     insertions: number;
     deletions: number;
   };
+  changed_files: ChangedFile[];
+}
+
+export interface FileHistoryEntry {
+  oid: string;
+  summary: string;
+  author_name: string;
+  timestamp: number;
 }

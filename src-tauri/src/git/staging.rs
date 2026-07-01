@@ -89,6 +89,14 @@ pub fn discard_changes(repo: &git2::Repository, path: &str) -> Result<(), AppErr
     Ok(())
 }
 
+pub fn discard_lines(repo: &git2::Repository, path: &str, lines: &[HunkLine]) -> Result<(), AppError> {
+    // Frontend pre-processes lines (reverses selected change lines to apply as workdir patch)
+    let patch = build_patch(path, lines);
+    let diff = git2::Diff::from_buffer(patch.as_bytes())?;
+    repo.apply(&diff, git2::ApplyLocation::WorkDir, None)?;
+    Ok(())
+}
+
 fn build_patch(path: &str, lines: &[HunkLine]) -> String {
     let additions: i32 = lines.iter().filter(|l| l.origin == '+').count() as i32;
     let deletions: i32 = lines.iter().filter(|l| l.origin == '-').count() as i32;

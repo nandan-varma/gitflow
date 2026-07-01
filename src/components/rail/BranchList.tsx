@@ -1,10 +1,12 @@
 import React, { useState } from "react";
 import { GitBranch, ChevronDown, ChevronRight, Plus, Trash2, Merge } from "lucide-react";
-import { useBranches, useSwitchBranch, useDeleteBranch } from "../../hooks/useBranches";
+import { useBranches, useSwitchBranch, useDeleteBranch, useRebaseBranch } from "../../hooks/useBranches";
 import { usePullRequests } from "../../hooks/useGitHub";
+import { usePush } from "../../hooks/useRemote";
 import { useUIStore } from "../../store/uiStore";
 import type { BranchInfo } from "../../types/git";
 import type { PullRequest } from "../../types/github";
+import type { MenuItem } from "../../types/contextMenu";
 
 export function BranchList() {
   const [collapsed, setCollapsed] = useState(false);
@@ -71,7 +73,9 @@ export function BranchList() {
 function BranchItem({ branch, isRemote = false, pr }: { branch: BranchInfo; isRemote?: boolean; pr?: PullRequest }) {
   const switchBranch = useSwitchBranch();
   const deleteBranch = useDeleteBranch();
-  const { openDialog } = useUIStore();
+  const rebaseBranch = useRebaseBranch();
+  const push = usePush();
+  const { openDialog, showContextMenu } = useUIStore();
   const [hovering, setHovering] = useState(false);
 
   return (
@@ -87,6 +91,31 @@ function BranchItem({ branch, isRemote = false, pr }: { branch: BranchInfo; isRe
         cursor: "pointer",
       }}
       onClick={() => !branch.is_head && !isRemote && switchBranch.mutate(branch.name)}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        const items: MenuItem[] = [];
+        if (!branch.is_head && !isRemote) {
+          items.push(
+            { label: "Switch to Branch", action: () => switchBranch.mutate(branch.name) },
+            { label: "Merge into Current", action: () => openDialog("merge", branch.name) },
+            { label: "Rebase onto Current", action: () => rebaseBranch.mutate(branch.name) },
+            "separator",
+            { label: "Push", action: () => push.mutate({ branch: branch.name, setUpstream: branch.behind > 0 || branch.ahead > 0 }) },
+            "separator",
+            { label: "Delete Branch", danger: true, action: () => deleteBranch.mutate({ name: branch.name, force: false }) },
+          );
+        } else if (branch.is_head) {
+          items.push(
+            { label: "Push", action: () => push.mutate({ branch: branch.name, setUpstream: false }) },
+            "separator",
+            { label: "Interactive Rebase…", action: () => openDialog("interactive-rebase") },
+          );
+        } else if (isRemote) {
+          items.push({ label: "Checkout", action: () => switchBranch.mutate(branch.name) });
+        }
+        items.push("separator", { label: "Copy Name", action: () => { navigator.clipboard.writeText(branch.name).catch(() => {}); } });
+        showContextMenu(e.clientX, e.clientY, items);
+      }}
     >
       <GitBranch
         size={12}

@@ -1,5 +1,5 @@
 use serde::Serialize;
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use crate::error::AppError;
 
 #[derive(Debug, Serialize)]
@@ -194,6 +194,23 @@ pub fn get_commit_graph(
 }
 
 #[derive(Debug, Serialize)]
+pub struct ChangedFile {
+    pub path: String,
+    pub old_path: Option<String>,
+    pub status: String,
+    pub additions: usize,
+    pub deletions: usize,
+}
+
+#[derive(Debug, Serialize)]
+pub struct FileHistoryEntry {
+    pub oid: String,
+    pub summary: String,
+    pub author_name: String,
+    pub timestamp: i64,
+}
+
+#[derive(Debug, Serialize)]
 pub struct CommitDetail {
     pub oid: String,
     pub summary: String,
@@ -206,6 +223,7 @@ pub struct CommitDetail {
     pub committer_timestamp: i64,
     pub parents: Vec<String>,
     pub stats: DiffStats,
+    pub changed_files: Vec<ChangedFile>,
 }
 
 #[derive(Debug, Serialize, Default)]
@@ -220,26 +238,49 @@ pub fn get_commit_detail(repo: &git2::Repository, oid_str: &str) -> Result<Commi
         .map_err(|_| AppError::InvalidArgument(format!("Invalid OID: {oid_str}")))?;
     let commit = repo.find_commit(oid)?;
 
-    let stats = if commit.parent_count() == 0 {
-        let tree = commit.tree()?;
-        let diff = repo.diff_tree_to_tree(None, Some(&tree), None)?;
-        let s = diff.stats()?;
-        DiffStats {
-            files_changed: s.files_changed(),
-            insertions: s.insertions(),
-            deletions: s.deletions(),
-        }
-    } else {
-        let parent_tree = commit.parent(0)?.tree()?;
-        let tree = commit.tree()?;
-        let diff = repo.diff_tree_to_tree(Some(&parent_tree), Some(&tree), None)?;
-        let s = diff.stats()?;
-        DiffStats {
-            files_changed: s.files_changed(),
-            insertions: s.insertions(),
-            deletions: s.deletions(),
-        }
+    let parent_tree = commit.parent(0).ok().and_then(|p| p.tree().ok());
+    let tree = commit.tree()?;
+    let diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), None)?;
+
+    let s = diff.stats()?;
+    let stats = DiffStats {
+        files_changed: s.files_changed(),
+        insertions: s.insertions(),
+        deletions: s.deletions(),
     };
+
+    let changed_files: Rc<RefCell<Vec<ChangedFile>>> = Rc::new(RefCell::new(Vec::new()));
+    let cf_file = Rc::clone(&changed_files);
+    let cf_line = Rc::clone(&changed_files);
+
+    diff.foreach(
+        &mut |delta, _| {
+            let new_p = delta.new_file().path().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
+            let old_p = delta.old_file().path().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
+            let old_path = if old_p != new_p && !old_p.is_empty() { Some(old_p) } else { None };
+            let status = match delta.status() {
+                git2::Delta::Added => "added",
+                git2::Delta::Deleted => "deleted",
+                git2::Delta::Renamed => "renamed",
+                _ => "modified",
+            }.to_string();
+            cf_file.borrow_mut().push(ChangedFile { path: new_p, old_path, status, additions: 0, deletions: 0 });
+            true
+        },
+        None,
+        None,
+        Some(&mut |_, _, line| {
+            match line.origin() {
+                '+' => { if let Some(f) = cf_line.borrow_mut().last_mut() { f.additions += 1; } }
+                '-' => { if let Some(f) = cf_line.borrow_mut().last_mut() { f.deletions += 1; } }
+                _ => {}
+            }
+            true
+        }),
+    )?;
+
+    drop((cf_file, cf_line));
+    let changed_files = Rc::try_unwrap(changed_files).unwrap().into_inner();
 
     let author = commit.author();
     let committer = commit.committer();
@@ -259,5 +300,59 @@ pub fn get_commit_detail(repo: &git2::Repository, oid_str: &str) -> Result<Commi
         committer_timestamp: committer.when().seconds(),
         parents,
         stats,
+        changed_files,
     })
+}
+
+pub fn get_file_history(
+    repo: &git2::Repository,
+    path: &str,
+    limit: usize,
+) -> Result<Vec<FileHistoryEntry>, AppError> {
+    let mut walk = repo.revwalk()?;
+    walk.push_head().ok();
+    for r in repo.references()? {
+        if let Ok(r) = r {
+            if let Some(oid) = r.target() { walk.push(oid).ok(); }
+        }
+    }
+    walk.set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME)?;
+
+    let p = std::path::Path::new(path);
+    let mut entries = Vec::new();
+
+    'outer: for oid_result in walk {
+        let oid = oid_result?;
+        let commit = repo.find_commit(oid)?;
+        let tree = commit.tree()?;
+        let parent_tree = commit.parent(0).ok().and_then(|p| p.tree().ok());
+
+        let mut opts = git2::DiffOptions::new();
+        opts.pathspec(path);
+        let diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), Some(&mut opts))?;
+
+        let mut touched = false;
+        diff.foreach(
+            &mut |delta, _| {
+                if delta.new_file().path() == Some(p) || delta.old_file().path() == Some(p) {
+                    touched = true;
+                }
+                true
+            },
+            None, None, None,
+        )?;
+
+        if touched {
+            let author = commit.author();
+            entries.push(FileHistoryEntry {
+                oid: oid.to_string(),
+                summary: commit.summary().unwrap_or("").to_string(),
+                author_name: author.name().unwrap_or("").to_string(),
+                timestamp: commit.time().seconds(),
+            });
+            if entries.len() >= limit { break 'outer; }
+        }
+    }
+
+    Ok(entries)
 }

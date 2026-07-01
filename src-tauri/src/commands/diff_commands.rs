@@ -1,7 +1,10 @@
 use tauri::State;
 use crate::{
     error::AppError,
-    git::diff::{get_diff_workdir, get_diff_staged, get_diff_commit, FileDiff},
+    git::{
+        diff::{get_diff_workdir, get_diff_staged, get_diff_commit, FileDiff},
+        blame::{get_blame, BlameLine},
+    },
     state::AppState,
 };
 
@@ -36,5 +39,13 @@ pub async fn cmd_get_diff_commit(
     let t = std::time::Instant::now();
     let r = (|| { let repo = state.open_repo()?; get_diff_commit(&repo, &oid, &path) })();
     state.log_command("cmd_get_diff_commit", t, &r);
+    r
+}
+
+#[tauri::command]
+pub async fn cmd_get_blame(path: String, state: State<'_, AppState>) -> Result<Vec<BlameLine>, AppError> {
+    let t = std::time::Instant::now();
+    let r = (|| { let repo = state.open_repo()?; get_blame(&repo, &path) })();
+    state.log_command("cmd_get_blame", t, &r);
     r
 }

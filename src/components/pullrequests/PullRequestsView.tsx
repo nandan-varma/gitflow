@@ -1,97 +1,263 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Plus, RefreshCw } from "lucide-react";
-import { usePullRequests } from "../../hooks/useGitHub";
+import { usePullRequests, useIssues, useCreateIssueWeb } from "../../hooks/useGitHub";
 import { PullRequestItem } from "./PullRequestItem";
 import { PullRequestDetail } from "./PullRequestDetail";
+import { IssueItem } from "./IssueItem";
+import { IssueDetail } from "./IssueDetail";
 import { CreatePRDialog } from "./CreatePRDialog";
-import type { PullRequest } from "../../types/github";
+import type { ActivityType, PRState, IssueState, ActivityItem } from "../../types/github";
+
+// ─── Filter pill group ────────────────────────────────────────────────────────
+
+function Pills<T extends string>({
+  value,
+  onChange,
+  options,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { value: T; label: string }[];
+}) {
+  return (
+    <div style={{ display: "flex", gap: 2 }}>
+      {options.map((opt) => {
+        const active = value === opt.value;
+        return (
+          <button
+            key={opt.value}
+            onClick={() => onChange(opt.value)}
+            style={{
+              padding: "2px 9px",
+              fontSize: 11,
+              borderRadius: 10,
+              border: "1px solid",
+              borderColor: active ? "var(--accent)" : "var(--border)",
+              background: active ? "rgba(76,139,245,0.15)" : "transparent",
+              color: active ? "var(--accent)" : "var(--text-muted)",
+              fontWeight: active ? 500 : 400,
+              cursor: "pointer",
+            }}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Main view ───────────────────────────────────────────────────────────────
+
+const TYPE_OPTIONS: { value: ActivityType; label: string }[] = [
+  { value: "both",   label: "All" },
+  { value: "prs",    label: "PRs" },
+  { value: "issues", label: "Issues" },
+];
+
+const PR_STATE_OPTIONS: { value: PRState; label: string }[] = [
+  { value: "open",   label: "Open" },
+  { value: "closed", label: "Closed" },
+  { value: "merged", label: "Merged" },
+  { value: "all",    label: "All" },
+];
+
+const ISSUE_STATE_OPTIONS: { value: IssueState; label: string }[] = [
+  { value: "open",   label: "Open" },
+  { value: "closed", label: "Closed" },
+  { value: "all",    label: "All" },
+];
 
 export function PullRequestsView() {
-  const { data: prs = [], isLoading, error, refetch, isFetching } = usePullRequests();
-  const [selected, setSelected] = useState<PullRequest | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [activityType, setActivityType] = useState<ActivityType>("both");
+  const [prState, setPRState] = useState<PRState>("open");
+  const [issueState, setIssueState] = useState<IssueState>("open");
+  const [selected, setSelected] = useState<ActivityItem | null>(null);
+  const [creating, setCreating] = useState<"pr" | "issue" | null>(null);
 
-  if (isLoading) {
-    return <div style={{ padding: 16, color: "var(--text-muted)", fontSize: 12 }}>Loading pull requests…</div>;
-  }
+  const createIssueWeb = useCreateIssueWeb();
 
-  if (error) {
-    return (
-      <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-        <span style={{ fontSize: 12, color: "var(--danger)" }}>
-          Could not load pull requests — gh CLI not available or not authenticated.
-        </span>
-        <code style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
-          gh auth login
-        </code>
-      </div>
+  const showPRs = activityType === "prs" || activityType === "both";
+  const showIssues = activityType === "issues" || activityType === "both";
+
+  // For "both" mode use the same state for both, but issues have no "merged"
+  const effectiveIssueState: IssueState =
+    activityType === "both" ? (prState === "merged" ? "all" : prState as IssueState) : issueState;
+
+  const prQuery    = usePullRequests(prState, showPRs);
+  const issueQuery = useIssues(effectiveIssueState, showIssues);
+
+  const isLoading = (showPRs && prQuery.isLoading) || (showIssues && issueQuery.isLoading);
+  const hasError  = (showPRs && !!prQuery.error)   || (showIssues && !!issueQuery.error);
+  const isFetching = (showPRs && prQuery.isFetching) || (showIssues && issueQuery.isFetching);
+
+  // Merge + sort by createdAt descending
+  const items = useMemo<ActivityItem[]>(() => {
+    const result: ActivityItem[] = [];
+    if (showPRs) {
+      (prQuery.data ?? []).forEach((pr) => result.push({ kind: "pr", data: pr }));
+    }
+    if (showIssues) {
+      (issueQuery.data ?? []).forEach((issue) => result.push({ kind: "issue", data: issue }));
+    }
+    return result.sort(
+      (a, b) => new Date(b.data.createdAt).getTime() - new Date(a.data.createdAt).getTime()
     );
-  }
+  }, [prQuery.data, issueQuery.data, showPRs, showIssues]);
+
+  // Reset selected item when filters change
+  const handleTypeChange = (t: ActivityType) => {
+    setActivityType(t);
+    setSelected(null);
+    // Reset merged state if switching away from PRs-only
+    if (t !== "prs" && prState === "merged") setPRState("open");
+  };
+
+  const handlePRStateChange = (s: PRState) => {
+    setPRState(s);
+    setSelected(null);
+  };
+
+  const handleIssueStateChange = (s: IssueState) => {
+    setIssueState(s);
+    setSelected(null);
+  };
+
+  const handleRefresh = () => {
+    if (showPRs)   prQuery.refetch();
+    if (showIssues) issueQuery.refetch();
+  };
+
+  // State pill options depend on type.
+  // "both" uses ISSUE_STATE_OPTIONS (no "merged") and effectiveIssueState as value
+  // so the pill always shows a valid option regardless of prState.
+  const stateOptions  = activityType === "prs" ? PR_STATE_OPTIONS : ISSUE_STATE_OPTIONS;
+  const stateValue    = activityType === "issues" ? issueState
+                      : activityType === "both"   ? effectiveIssueState
+                      : prState;
+  const onStateChange = (v: string) =>
+    activityType === "issues" ? handleIssueStateChange(v as IssueState) : handlePRStateChange(v as PRState);
+
+  const emptyLabel =
+    activityType === "prs" ? `No ${prState} pull requests`
+    : activityType === "issues" ? `No ${issueState} issues`
+    : `No ${prState} activity`;
 
   return (
     <div style={{ display: "flex", height: "100%", overflow: "hidden" }}>
-      {/* PR list */}
+      {/* Left column: filters + list */}
       <div style={{ width: 300, flexShrink: 0, borderRight: "1px solid var(--border)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <div style={{ display: "flex", alignItems: "center", padding: "6px 12px", borderBottom: "1px solid var(--border)", gap: 6 }}>
-          <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-            Pull Requests
-            <span style={{ marginLeft: 6, fontSize: 10, background: "var(--bg-elevated)", padding: "0 4px", borderRadius: 8 }}>
-              {prs.length}
+
+        {/* Filter bar */}
+        <div style={{ padding: "8px 10px", borderBottom: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Pills value={activityType} onChange={handleTypeChange} options={TYPE_OPTIONS} />
+            <div style={{ flex: 1 }} />
+            <button
+              onClick={handleRefresh}
+              disabled={isFetching}
+              title="Refresh"
+              style={{ color: "var(--text-muted)", padding: 2, display: "flex" }}
+            >
+              <RefreshCw size={11} style={{ animation: isFetching ? "spin 1s linear infinite" : undefined }} />
+            </button>
+            {(showPRs) && (
+              <button
+                onClick={() => setCreating("pr")}
+                title="New pull request"
+                style={{ color: "var(--text-muted)", padding: 2, display: "flex" }}
+              >
+                <Plus size={13} />
+              </button>
+            )}
+          </div>
+
+          {/* State pills row */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Pills
+              value={stateValue}
+              onChange={onStateChange}
+              options={stateOptions}
+            />
+            <span style={{ fontSize: 10, color: "var(--text-muted)", marginLeft: "auto" }}>
+              {items.length}
             </span>
-          </span>
-          <button
-            onClick={() => refetch()}
-            disabled={isFetching}
-            title="Refresh"
-            style={{ color: "var(--text-muted)", padding: 2 }}
-          >
-            <RefreshCw size={11} style={{ animation: isFetching ? "spin 1s linear infinite" : undefined }} />
-          </button>
-          <button
-            onClick={() => setCreating(true)}
-            title="New pull request"
-            style={{ color: "var(--text-muted)", padding: 2 }}
-          >
-            <Plus size={13} />
-          </button>
+          </div>
         </div>
+
+        {/* List */}
         <div style={{ flex: 1, overflowY: "auto" }}>
-          {prs.length === 0 ? (
+          {isLoading ? (
             <div style={{ padding: 16, color: "var(--text-muted)", fontSize: 12, textAlign: "center" }}>
-              No open pull requests
+              Loading…
+            </div>
+          ) : hasError ? (
+            <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={{ fontSize: 12, color: "var(--danger)" }}>
+                gh CLI not available or not authenticated.
+              </span>
+              <code style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
+                gh auth login
+              </code>
+            </div>
+          ) : items.length === 0 ? (
+            <div style={{ padding: 16, color: "var(--text-muted)", fontSize: 12, textAlign: "center" }}>
+              {emptyLabel}
             </div>
           ) : (
-            prs.map((pr) => (
-              <PullRequestItem
-                key={pr.number}
-                pr={pr}
-                selected={selected?.number === pr.number}
-                onClick={() => setSelected(pr)}
-              />
-            ))
+            items.map((item) =>
+              item.kind === "pr" ? (
+                <PullRequestItem
+                  key={`pr-${item.data.number}`}
+                  pr={item.data}
+                  selected={selected?.kind === "pr" && selected.data.number === item.data.number}
+                  onClick={() => setSelected(item)}
+                />
+              ) : (
+                <IssueItem
+                  key={`issue-${item.data.number}`}
+                  issue={item.data}
+                  selected={selected?.kind === "issue" && selected.data.number === item.data.number}
+                  onClick={() => setSelected(item)}
+                />
+              )
+            )
           )}
         </div>
       </div>
 
-      {/* PR detail */}
+      {/* Right column: detail */}
       <div style={{ flex: 1, overflow: "hidden" }}>
         {selected ? (
-          <PullRequestDetail pr={selected} />
+          selected.kind === "pr"
+            ? <PullRequestDetail pr={selected.data} />
+            : <IssueDetail issue={selected.data} />
         ) : (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12, color: "var(--text-muted)" }}>
-            <span style={{ fontSize: 12 }}>Select a pull request to view details</span>
-            <button
-              onClick={() => setCreating(true)}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", fontSize: 12, borderRadius: 4, border: "1px solid var(--border)", color: "var(--text-secondary)", background: "var(--bg-elevated)" }}
-            >
-              <Plus size={13} />
-              New Pull Request
-            </button>
+            <span style={{ fontSize: 12 }}>Select an item to view details</span>
+            <div style={{ display: "flex", gap: 8 }}>
+              {showPRs && (
+                <button
+                  onClick={() => setCreating("pr")}
+                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", fontSize: 12, borderRadius: 4, border: "1px solid var(--border)", color: "var(--text-secondary)", background: "var(--bg-elevated)" }}
+                >
+                  <Plus size={13} /> New PR
+                </button>
+              )}
+              {showIssues && (
+                <button
+                  onClick={() => createIssueWeb.mutate()}
+                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", fontSize: 12, borderRadius: 4, border: "1px solid var(--border)", color: "var(--text-secondary)", background: "var(--bg-elevated)" }}
+                >
+                  <Plus size={13} /> New Issue
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>
 
-      {creating && <CreatePRDialog onClose={() => setCreating(false)} />}
+      {creating === "pr" && <CreatePRDialog onClose={() => setCreating(null)} />}
     </div>
   );
 }

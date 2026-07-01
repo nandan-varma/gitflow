@@ -1,7 +1,8 @@
 import { create } from "zustand";
+import type { MenuItem } from "../types/contextMenu";
 
-type ActiveView = "graph" | "staging" | "diff" | "conflicts" | "stash" | "settings" | "pull-requests";
-type ActiveDialog = null | "branch-create" | "merge" | "rebase" | "stash-push" | "branch-delete" | "about";
+type ActiveView = "graph" | "staging" | "diff" | "conflicts" | "stash" | "settings" | "pull-requests" | "blame" | "file-history";
+type ActiveDialog = null | "branch-create" | "merge" | "rebase" | "stash-push" | "branch-delete" | "about" | "tag-create" | "interactive-rebase";
 
 interface UIStore {
   activeView: ActiveView;
@@ -16,6 +17,10 @@ interface UIStore {
   activeDialog: ActiveDialog;
   dialogPayload: unknown;
   amending: boolean;
+  contextMenu: { x: number; y: number; items: MenuItem[] } | null;
+  graphSearch: string;
+  blameFilePath: string | null;
+  fileHistoryPath: string | null;
 
   setActiveView: (view: ActiveView) => void;
   selectCommit: (oid: string | null) => void;
@@ -29,6 +34,11 @@ interface UIStore {
   openDialog: (dialog: ActiveDialog, payload?: unknown) => void;
   closeDialog: () => void;
   setAmending: (v: boolean) => void;
+  showContextMenu: (x: number, y: number, items: MenuItem[]) => void;
+  hideContextMenu: () => void;
+  setGraphSearch: (q: string) => void;
+  openBlame: (path: string) => void;
+  openFileHistory: (path: string) => void;
 }
 
 export const useUIStore = create<UIStore>((set) => ({
@@ -44,6 +54,10 @@ export const useUIStore = create<UIStore>((set) => ({
   activeDialog: null,
   dialogPayload: null,
   amending: false,
+  contextMenu: null,
+  graphSearch: "",
+  blameFilePath: null,
+  fileHistoryPath: null,
 
   setActiveView: (activeView) => set({ activeView }),
   selectCommit: (selectedCommitOid) => set({ selectedCommitOid }),
@@ -57,4 +71,9 @@ export const useUIStore = create<UIStore>((set) => ({
   openDialog: (activeDialog, payload = null) => set({ activeDialog, dialogPayload: payload }),
   closeDialog: () => set({ activeDialog: null, dialogPayload: null }),
   setAmending: (amending) => set({ amending }),
+  showContextMenu: (x, y, items) => set({ contextMenu: { x, y, items } }),
+  hideContextMenu: () => set({ contextMenu: null }),
+  setGraphSearch: (graphSearch) => set({ graphSearch }),
+  openBlame: (blameFilePath) => set({ blameFilePath, activeView: "blame" }),
+  openFileHistory: (fileHistoryPath) => set({ fileHistoryPath, activeView: "file-history" }),
 }));

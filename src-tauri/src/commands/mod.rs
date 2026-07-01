@@ -8,3 +8,4 @@ pub mod stash_commands;
 pub mod conflict_commands;
 pub mod remote_commands;
 pub mod gh_commands;
+pub mod opener_commands;

@@ -93,6 +93,8 @@ export function DiffLine({ line, lineKey, selected, onToggle, showLineNumbers = 
           overflow: "visible",
           margin: 0,
           padding: "0 8px",
+          userSelect: "text",
+          WebkitUserSelect: "text",
         }}
       >
         {line.content.replace(/\n$/, "")}

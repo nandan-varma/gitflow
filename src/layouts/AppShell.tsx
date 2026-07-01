@@ -13,9 +13,14 @@ import { PullRequestsView } from "../components/pullrequests/PullRequestsView";
 import { BranchCreateDialog } from "../components/branches/BranchCreateDialog";
 import { MergeDialog } from "../components/branches/MergeDialog";
 import { RebaseDialog } from "../components/branches/RebaseDialog";
+import { CreateTagDialog } from "../components/branches/CreateTagDialog";
+import { InteractiveRebaseDialog } from "../components/branches/InteractiveRebaseDialog";
 import { StashPushDialog } from "../components/stash/StashPushDialog";
 import { AboutDialog } from "../components/about/AboutDialog";
+import { BlameView } from "../components/blame/BlameView";
+import { FileHistoryView } from "../components/graph/FileHistoryView";
 import { SettingsPage } from "../components/settings/SettingsPage";
+import { ContextMenu } from "../components/ContextMenu";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { useRepoChangeListener, useRepoInfo } from "../hooks/useRepository";
 import { useCommandLogStore } from "../store/commandLogStore";
@@ -184,33 +189,40 @@ export function AppShell() {
               <PullRequestsView />
             </ErrorBoundary>
           )}
+          {activeView === "blame" && <BlameView />}
+          {activeView === "file-history" && <FileHistoryView />}
           {activeView === "settings" && <SettingsPage />}
         </div>
-        <CommitBar />
+        {activeView !== "staging" && activeView !== "settings" && <CommitBar />}
 
         {commandLogOpen && <CommandLog height={commandLogHeight} />}
       </div>
 
-      {/* Context resize handle */}
-      <ResizeDivider onDelta={handleCtxDelta} />
-
-      {/* Right Context Panel */}
-      <div style={{
-        width: "var(--ctx-dyn)",
-        flexShrink: 0,
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-      }}>
-        <ContextPanel />
-      </div>
+      {/* Context resize handle + panel — only relevant in graph view */}
+      {activeView === "graph" && (
+        <>
+          <ResizeDivider onDelta={handleCtxDelta} />
+          <div style={{
+            width: "var(--ctx-dyn)",
+            flexShrink: 0,
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+          }}>
+            <ContextPanel />
+          </div>
+        </>
+      )}
 
       {/* Dialogs */}
       {activeDialog === "branch-create" && <BranchCreateDialog />}
       {activeDialog === "merge" && <MergeDialog />}
       {activeDialog === "rebase" && <RebaseDialog />}
+      {activeDialog === "tag-create" && <CreateTagDialog />}
+      {activeDialog === "interactive-rebase" && <InteractiveRebaseDialog />}
       {activeDialog === "stash-push" && <StashPushDialog />}
       {activeDialog === "about" && <AboutDialog />}
+      <ContextMenu />
     </div>
   );
 }

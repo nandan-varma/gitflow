@@ -54,24 +54,24 @@ export function StashManager() {
               <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
                 <button
                   onClick={() => apply.mutate(s.index)}
-                  title="Apply (keep stash)"
-                  style={{ padding: "3px 6px", borderRadius: 3, fontSize: 11, background: "rgba(76,175,80,0.15)", color: "var(--success)" }}
+                  title="Apply — restore changes, keep stash"
+                  style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 3, fontSize: 11, background: "rgba(76,175,80,0.15)", color: "var(--success)" }}
                 >
-                  <Download size={11} />
+                  <Download size={11} /> Apply
                 </button>
                 <button
                   onClick={() => pop.mutate(s.index)}
-                  title="Pop (apply and drop)"
-                  style={{ padding: "3px 6px", borderRadius: 3, fontSize: 11, background: "rgba(76,139,245,0.15)", color: "var(--accent)" }}
+                  title="Pop — restore changes and delete stash"
+                  style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 3, fontSize: 11, background: "rgba(76,139,245,0.15)", color: "var(--accent)" }}
                 >
-                  <Play size={11} />
+                  <Play size={11} /> Pop
                 </button>
                 <button
                   onClick={() => drop.mutate(s.index)}
-                  title="Drop stash"
-                  style={{ padding: "3px 6px", borderRadius: 3, fontSize: 11, background: "rgba(244,67,54,0.15)", color: "var(--danger)" }}
+                  title="Drop — delete stash without applying"
+                  style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 3, fontSize: 11, background: "rgba(244,67,54,0.15)", color: "var(--danger)" }}
                 >
-                  <Trash2 size={11} />
+                  <Trash2 size={11} /> Drop
                 </button>
               </div>
             </div>

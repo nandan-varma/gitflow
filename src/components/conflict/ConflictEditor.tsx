@@ -76,9 +76,9 @@ export function ConflictEditor() {
           ))}
         </div>
 
-        {/* 3-pane editor */}
+        {/* 3-pane editor — key forces remount on file switch so state doesn't bleed across files */}
         {detail && activePath && (
-          <ConflictPane detail={detail} path={activePath} onResolve={(res) => resolve.mutate({ path: activePath, resolution: res })} />
+          <ConflictPane key={activePath} detail={detail} path={activePath} onResolve={(res) => resolve.mutate({ path: activePath, resolution: res })} />
         )}
       </div>
     </div>
@@ -94,50 +94,51 @@ function ConflictPane({
   path: string;
   onResolve: (resolution: string) => void;
 }) {
-  const [activeBlock, setActiveBlock] = useState(0);
-  const [resolutions, setResolutions] = useState<string[]>(
-    detail.conflicts.map(() => "")
+  const blockText = (i: number, res: string) =>
+    [...detail.conflicts[i].before_lines, res].join("\n");
+
+  // Tracks what each button last set so we can do a targeted replacement in the textarea
+  const lastRes = React.useRef<string[]>(detail.conflicts.map(() => ""));
+
+  const [editableResult, setEditableResult] = useState(() =>
+    detail.conflicts.map((_, i) => blockText(i, "")).join("\n")
   );
-  const [editableResult, setEditableResult] = useState(
-    detail.conflicts.map((c) => "").join("\n")
-  );
 
-  const handleAcceptOurs = (i: number) => {
-    const block = detail.conflicts[i];
-    const updated = [...resolutions];
-    updated[i] = block.ours_lines.join("\n");
-    setResolutions(updated);
+  const applyChoice = (i: number, newRes: string) => {
+    const oldBlock = blockText(i, lastRes.current[i]);
+    const newBlock = blockText(i, newRes);
+    lastRes.current[i] = newRes;
+    setEditableResult(prev => {
+      if (!oldBlock) {
+        // Empty section (no before_lines + empty old res): can't locate, full rebuild
+        return detail.conflicts.map((_, j) => blockText(j, lastRes.current[j])).join("\n");
+      }
+      const idx = prev.indexOf(oldBlock);
+      if (idx < 0) {
+        // User edited this section beyond recognition: rebuild from tracked choices
+        return detail.conflicts.map((_, j) => blockText(j, lastRes.current[j])).join("\n");
+      }
+      return prev.slice(0, idx) + newBlock + prev.slice(idx + oldBlock.length);
+    });
   };
-
-  const handleAcceptTheirs = (i: number) => {
-    const block = detail.conflicts[i];
-    const updated = [...resolutions];
-    updated[i] = block.theirs_lines.join("\n");
-    setResolutions(updated);
-  };
-
-  const buildResult = () =>
-    detail.conflicts
-      .map((c, i) => [...c.before_lines, resolutions[i] || ""].join("\n"))
-      .join("\n");
 
   return (
     <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
       {/* Ours panel */}
       <div style={{ flex: 1, overflow: "auto", borderRight: "1px solid var(--border)" }}>
-        <div style={{ padding: "4px 8px", fontSize: 10, fontWeight: 600, color: "var(--text-muted)", background: "var(--bg-elevated)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+        <div style={{ padding: "4px 8px", fontSize: 10, fontWeight: 600, color: "var(--success)", background: "rgba(76,175,80,0.08)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
           Ours (Current)
         </div>
         {detail.conflicts.map((block, i) => (
           <div key={i} style={{ borderBottom: "1px solid var(--border)" }}>
-            <div style={{ padding: "4px 8px", background: "rgba(76,175,80,0.08)" }}>
+            <div style={{ padding: "4px 8px" }}>
               {block.ours_lines.map((l, j) => (
                 <pre key={j} style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--success)", margin: 0 }}>{l}</pre>
               ))}
             </div>
             <button
-              onClick={() => handleAcceptOurs(i)}
-              style={{ display: "block", width: "100%", padding: "3px 8px", fontSize: 11, color: "var(--success)", background: "rgba(76,175,80,0.1)", textAlign: "left" }}
+              onClick={() => applyChoice(i, detail.conflicts[i].ours_lines.join("\n"))}
+              style={{ display: "block", width: "100%", padding: "3px 8px", fontSize: 11, color: "var(--success)", background: "rgba(76,175,80,0.12)", textAlign: "left" }}
             >
               ▶ Use Ours
             </button>
@@ -148,7 +149,7 @@ function ConflictPane({
       {/* Result panel */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <div style={{ padding: "4px 8px", fontSize: 10, fontWeight: 600, color: "var(--text-muted)", background: "var(--bg-elevated)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-          Result (editable)
+          Result — edit freely
         </div>
         <textarea
           style={{
@@ -161,25 +162,19 @@ function ConflictPane({
             color: "var(--text-primary)",
             border: "none",
             padding: 8,
+            boxSizing: "border-box",
           }}
-          value={buildResult()}
+          value={editableResult}
           onChange={(e) => setEditableResult(e.target.value)}
         />
         <div style={{ padding: "6px 8px", borderTop: "1px solid var(--border)" }}>
           <button
-            onClick={() => onResolve(buildResult())}
+            onClick={() => onResolve(editableResult)}
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "5px 12px",
-              borderRadius: 4,
-              background: "var(--success)",
-              color: "#fff",
-              fontSize: 12,
-              fontWeight: 500,
-              width: "100%",
-              justifyContent: "center",
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "5px 12px", borderRadius: 4,
+              background: "var(--success)", color: "#fff",
+              fontSize: 12, fontWeight: 500, width: "100%", justifyContent: "center",
             }}
           >
             <Check size={13} />
@@ -190,19 +185,19 @@ function ConflictPane({
 
       {/* Theirs panel */}
       <div style={{ flex: 1, overflow: "auto", borderLeft: "1px solid var(--border)" }}>
-        <div style={{ padding: "4px 8px", fontSize: 10, fontWeight: 600, color: "var(--text-muted)", background: "var(--bg-elevated)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+        <div style={{ padding: "4px 8px", fontSize: 10, fontWeight: 600, color: "var(--info)", background: "rgba(33,150,243,0.08)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
           Theirs (Incoming)
         </div>
         {detail.conflicts.map((block, i) => (
           <div key={i} style={{ borderBottom: "1px solid var(--border)" }}>
-            <div style={{ padding: "4px 8px", background: "rgba(33,150,243,0.08)" }}>
+            <div style={{ padding: "4px 8px" }}>
               {block.theirs_lines.map((l, j) => (
                 <pre key={j} style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--info)", margin: 0 }}>{l}</pre>
               ))}
             </div>
             <button
-              onClick={() => handleAcceptTheirs(i)}
-              style={{ display: "block", width: "100%", padding: "3px 8px", fontSize: 11, color: "var(--info)", background: "rgba(33,150,243,0.1)", textAlign: "left" }}
+              onClick={() => applyChoice(i, detail.conflicts[i].theirs_lines.join("\n"))}
+              style={{ display: "block", width: "100%", padding: "3px 8px", fontSize: 11, color: "var(--info)", background: "rgba(33,150,243,0.12)", textAlign: "left" }}
             >
               ▶ Use Theirs
             </button>

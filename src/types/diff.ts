@@ -31,3 +31,13 @@ export interface WordChange {
   type: "add" | "remove" | "equal";
   text: string;
 }
+
+export interface BlameLine {
+  line_no: number;
+  content: string;
+  oid: string;
+  author_name: string;
+  author_email: string;
+  timestamp: number;
+  summary: string;
+}

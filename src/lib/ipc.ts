@@ -3,8 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 export const toErrMsg = (e: unknown): string =>
   e && typeof e === "object" && "message" in e ? String((e as { message: unknown }).message) : String(e);
 import type { RepoInfo, FileStatus, BranchInfo, StashEntry, MergeResult, ConflictEntry, ConflictDetail, TagEntry, RebaseOutcome } from "../types/git";
-import type { FileDiff, DiffLine } from "../types/diff";
-import type { GraphPage, CommitDetail } from "../types/graph";
+import type { FileDiff, DiffLine, BlameLine } from "../types/diff";
+import type { GraphPage, CommitDetail, FileHistoryEntry } from "../types/graph";
 
 export const ipc = {
   // Repo
@@ -34,6 +34,13 @@ export const ipc = {
   getDiffCommit: (oid: string, path: string) =>
     invoke<FileDiff>("cmd_get_diff_commit", { oid, path }),
 
+  // Graph extras
+  getFileHistory: (path: string, limit: number) =>
+    invoke<FileHistoryEntry[]>("cmd_get_file_history", { path, limit }),
+
+  getBlame: (path: string) =>
+    invoke<BlameLine[]>("cmd_get_blame", { path }),
+
   // Staging
   stageFile: (path: string) =>
     invoke<void>("cmd_stage_file", { path }),
@@ -50,12 +57,18 @@ export const ipc = {
   discardChanges: (path: string) =>
     invoke<void>("cmd_discard_changes", { path }),
 
+  discardLines: (path: string, lines: DiffLine[]) =>
+    invoke<void>("cmd_discard_lines", { path, lines }),
+
   // Commit
   createCommit: (message: string) =>
     invoke<string>("cmd_create_commit", { message }),
 
   amendCommit: (message?: string) =>
     invoke<string>("cmd_amend_commit", { message }),
+
+  cherryPick: (oid: string) =>
+    invoke<void>("cmd_cherry_pick", { oid }),
 
   // Branches
   listBranches: () =>
@@ -87,6 +100,9 @@ export const ipc = {
 
   listTags: () =>
     invoke<TagEntry[]>("cmd_list_tags"),
+
+  createTag: (name: string, oid: string, message?: string) =>
+    invoke<void>("cmd_create_tag", { name, oid, message: message ?? null }),
 
   // Stash
   listStashes: () =>
@@ -124,9 +140,12 @@ export const ipc = {
   gitPull: (rebase = true) =>
     invoke<string>("cmd_git_pull", { rebase }),
 
-  // GitHub (gh CLI)
-  ghPrList: () =>
-    invoke<string>("cmd_gh_pr_list"),
+  interactiveRebase: (base: string, steps: { action: string; oid: string; message: string }[]) =>
+    invoke<string>("cmd_interactive_rebase", { base, steps }),
+
+  // GitHub PRs (gh CLI)
+  ghPrList: (prState: string) =>
+    invoke<string>("cmd_gh_pr_list", { prState }),
 
   ghPrView: (number: number) =>
     invoke<string>("cmd_gh_pr_view", { number }),
@@ -142,4 +161,27 @@ export const ipc = {
 
   ghPrMerge: (number: number, strategy: string, deleteBranch: boolean) =>
     invoke<void>("cmd_gh_pr_merge", { number, strategy, deleteBranch }),
+
+  // GitHub Issues (gh CLI)
+  ghIssueList: (issueState: string) =>
+    invoke<string>("cmd_gh_issue_list", { issueState }),
+
+  ghIssueView: (number: number) =>
+    invoke<string>("cmd_gh_issue_view", { number }),
+
+  ghIssueOpen: (number: number) =>
+    invoke<void>("cmd_gh_issue_open", { number }),
+
+  ghIssueCreateWeb: () =>
+    invoke<void>("cmd_gh_issue_create_web"),
+
+  // Opener (macOS external tools)
+  openInVscode: (path: string) =>
+    invoke<void>("cmd_open_in_vscode", { path }),
+
+  revealInFinder: (path: string) =>
+    invoke<void>("cmd_reveal_in_finder", { path }),
+
+  openInTerminal: (path: string) =>
+    invoke<void>("cmd_open_in_terminal", { path }),
 };

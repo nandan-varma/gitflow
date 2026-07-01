@@ -7,16 +7,17 @@ mod commands;
 use state::AppState;
 use tauri::Emitter;
 use commands::{
-    repo_commands::{open_repository, get_current_repo_info, cmd_get_status, cmd_list_tags},
-    graph_commands::{cmd_get_commit_graph, cmd_get_commit_detail},
-    diff_commands::{cmd_get_diff_workdir, cmd_get_diff_staged, cmd_get_diff_commit},
-    staging_commands::{cmd_stage_file, cmd_unstage_file, cmd_stage_hunk, cmd_unstage_hunk, cmd_discard_changes},
-    commit_commands::{cmd_create_commit, cmd_amend_commit},
+    repo_commands::{open_repository, get_current_repo_info, cmd_get_status, cmd_list_tags, cmd_create_tag},
+    graph_commands::{cmd_get_commit_graph, cmd_get_commit_detail, cmd_get_file_history},
+    diff_commands::{cmd_get_diff_workdir, cmd_get_diff_staged, cmd_get_diff_commit, cmd_get_blame},
+    staging_commands::{cmd_stage_file, cmd_unstage_file, cmd_stage_hunk, cmd_unstage_hunk, cmd_discard_changes, cmd_discard_lines},
+    commit_commands::{cmd_create_commit, cmd_amend_commit, cmd_cherry_pick},
     branch_commands::{cmd_list_branches, cmd_create_branch, cmd_switch_branch, cmd_delete_branch, cmd_merge_branch, cmd_abort_merge, cmd_rebase_branch, cmd_continue_rebase, cmd_abort_rebase},
     stash_commands::{cmd_list_stashes, cmd_stash_push, cmd_stash_apply, cmd_stash_pop, cmd_stash_drop},
     conflict_commands::{cmd_get_conflicts, cmd_get_conflict_detail, cmd_resolve_conflict},
-    remote_commands::{cmd_git_fetch, cmd_git_push, cmd_git_pull},
-    gh_commands::{cmd_gh_pr_list, cmd_gh_pr_view, cmd_gh_pr_create, cmd_gh_pr_checkout, cmd_gh_pr_open, cmd_gh_pr_merge},
+    remote_commands::{cmd_git_fetch, cmd_git_push, cmd_git_pull, cmd_interactive_rebase},
+    gh_commands::{cmd_gh_pr_list, cmd_gh_pr_view, cmd_gh_pr_create, cmd_gh_pr_checkout, cmd_gh_pr_open, cmd_gh_pr_merge, cmd_gh_issue_list, cmd_gh_issue_view, cmd_gh_issue_open, cmd_gh_issue_create_web},
+    opener_commands::{cmd_open_in_vscode, cmd_reveal_in_finder, cmd_open_in_terminal},
 };
 
 use tokio::sync::mpsc;
@@ -65,6 +66,11 @@ pub fn run() {
             cmd_continue_rebase,
             cmd_abort_rebase,
             cmd_list_tags,
+            cmd_create_tag,
+            cmd_get_file_history,
+            cmd_get_blame,
+            cmd_cherry_pick,
+            cmd_discard_lines,
             cmd_list_stashes,
             cmd_stash_push,
             cmd_stash_apply,
@@ -76,12 +82,20 @@ pub fn run() {
             cmd_git_fetch,
             cmd_git_push,
             cmd_git_pull,
+            cmd_interactive_rebase,
             cmd_gh_pr_list,
             cmd_gh_pr_view,
             cmd_gh_pr_create,
             cmd_gh_pr_checkout,
             cmd_gh_pr_open,
             cmd_gh_pr_merge,
+            cmd_gh_issue_list,
+            cmd_gh_issue_view,
+            cmd_gh_issue_open,
+            cmd_gh_issue_create_web,
+            cmd_open_in_vscode,
+            cmd_reveal_in_finder,
+            cmd_open_in_terminal,
         ])
         .setup(|app| {
             // Forward command log entries to the frontend as Tauri events

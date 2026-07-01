@@ -2,6 +2,24 @@ use tauri::State;
 use serde::Deserialize;
 use crate::{error::AppError, state::AppState};
 
+#[tauri::command]
+pub async fn cmd_cherry_pick(oid: String, state: State<'_, AppState>) -> Result<(), AppError> {
+    let t = std::time::Instant::now();
+    let r: Result<(), AppError> = async {
+        let path = state.repo_path.lock().unwrap().clone().ok_or(AppError::NoRepository)?;
+        let out = tokio::process::Command::new("git")
+            .args(["cherry-pick", &oid])
+            .current_dir(&path)
+            .output()
+            .await
+            .map_err(|e| AppError::Other(format!("git not found: {e}")))?;
+        if out.status.success() { Ok(()) }
+        else { Err(AppError::Other(String::from_utf8_lossy(&out.stderr).to_string())) }
+    }.await;
+    state.log_command("cmd_cherry_pick", t, &r);
+    r
+}
+
 #[derive(Deserialize)]
 pub struct SignatureInput {
     pub name: String,
