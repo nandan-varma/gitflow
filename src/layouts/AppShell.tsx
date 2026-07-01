@@ -102,13 +102,11 @@ export function AppShell() {
   useIpcEvent<CommandLogEntry>("command-log", pushEntry);
 
   const checkUpdatesOnStartup = useSettingsStore((s) => s.checkUpdatesOnStartup);
+  const updateChecked = useRef(false);
   useEffect(() => {
-    if (!checkUpdatesOnStartup) return;
-    checkUpdate().then((u) => {
-      if (u) {
-        setActiveView("settings");
-      }
-    }).catch(() => {});
+    if (!checkUpdatesOnStartup || updateChecked.current) return;
+    updateChecked.current = true;
+    checkUpdate().then((u) => { if (u) setActiveView("settings"); }).catch(() => {});
   }, []);
 
   const isRebasing = repoInfo?.state === "rebase";

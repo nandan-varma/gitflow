@@ -116,22 +116,24 @@ pub fn get_commit_graph(
 
         // Register parent edges — first parent continues the lane, others start new lanes
         for (i, parent_oid) in parents.iter().enumerate() {
-            let (edge_lane, edge_color) = if i == 0 {
-                // Continue in the same lane
-                let existing = active_lanes
-                    .iter()
-                    .position(|s| s.as_ref().map_or(false, |(co, _)| co == parent_oid));
-                if existing.is_none() {
-                    // Claim slot back for first parent continuation
-                    if lane < active_lanes.len() {
-                        active_lanes[lane] = Some((parent_oid.clone(), color_index));
-                        // Remove from free if we just put it back
-                        free_lanes.retain(|&fl| fl != lane);
-                    }
+            // Check if parent is already being tracked by another lane (convergence)
+            let existing = active_lanes
+                .iter()
+                .position(|s| s.as_ref().map_or(false, |(co, _)| co == parent_oid));
+
+            let (edge_lane, edge_color) = if let Some(existing_lane) = existing {
+                // Parent already tracked — edge converges to that lane
+                let existing_color = active_lanes[existing_lane].as_ref().unwrap().1;
+                (existing_lane, existing_color)
+            } else if i == 0 {
+                // First parent, not yet tracked — continue in the same lane
+                if lane < active_lanes.len() {
+                    active_lanes[lane] = Some((parent_oid.clone(), color_index));
+                    free_lanes.retain(|&fl| fl != lane);
                 }
                 (lane, color_index)
             } else {
-                // Merge parent — allocate a new lane
+                // Merge parent, not yet tracked — allocate a new lane
                 let merge_lane = if let Some(free) = free_lanes.pop() {
                     free
                 } else {
@@ -148,16 +150,14 @@ pub fn get_commit_graph(
                 (merge_lane, merge_color)
             };
 
-            let parent_position = oids.iter().position(|o| &o.to_string() == parent_oid);
-            if parent_position.is_some() {
-                edges.push(GraphEdge {
-                    from_oid: oid_str.clone(),
-                    to_oid: parent_oid.clone(),
-                    from_lane: lane,
-                    to_lane: edge_lane,
-                    color_index: edge_color,
-                });
-            }
+            // Always emit edge; frontend draws stubs for off-page parents
+            edges.push(GraphEdge {
+                from_oid: oid_str.clone(),
+                to_oid: parent_oid.clone(),
+                from_lane: lane,
+                to_lane: edge_lane,
+                color_index: edge_color,
+            });
         }
 
         let author = commit.author();

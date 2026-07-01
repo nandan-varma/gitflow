@@ -17,7 +17,6 @@ pub struct CommandLogEntry {
 
 pub struct AppState {
     pub repo_path: Mutex<Option<PathBuf>>,
-    #[allow(dead_code)]
     pub log_tx: mpsc::UnboundedSender<CommandLogEntry>,
     pub watch_stop: Mutex<Option<Arc<AtomicBool>>>,
 }
@@ -57,8 +56,21 @@ impl AppState {
         *self.watch_stop.lock().unwrap() = Some(stop);
     }
 
-    #[allow(dead_code)]
-    pub fn log(&self, entry: CommandLogEntry) {
+    pub fn log_command<T, E: std::fmt::Display>(
+        &self,
+        name: &'static str,
+        start: std::time::Instant,
+        result: &Result<T, E>,
+    ) {
+        let now = chrono::Utc::now();
+        let entry = CommandLogEntry {
+            id: now.timestamp_nanos_opt().unwrap_or(0).to_string(),
+            command: name.to_string(),
+            timestamp: now.timestamp(),
+            duration_ms: start.elapsed().as_millis() as u64,
+            success: result.is_ok(),
+            error_message: result.as_ref().err().map(|e| e.to_string()),
+        };
         let _ = self.log_tx.send(entry);
     }
 }

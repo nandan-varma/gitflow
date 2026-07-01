@@ -11,8 +11,10 @@ pub async fn cmd_get_commit_graph(
     offset: usize,
     state: State<'_, AppState>,
 ) -> Result<GraphPage, AppError> {
-    let repo = state.open_repo()?;
-    get_commit_graph(&repo, limit.max(1).min(500), offset)
+    let t = std::time::Instant::now();
+    let r = (|| { let repo = state.open_repo()?; get_commit_graph(&repo, limit.max(1).min(500), offset) })();
+    state.log_command("cmd_get_commit_graph", t, &r);
+    r
 }
 
 #[tauri::command]
@@ -20,6 +22,8 @@ pub async fn cmd_get_commit_detail(
     oid: String,
     state: State<'_, AppState>,
 ) -> Result<CommitDetail, AppError> {
-    let repo = state.open_repo()?;
-    get_commit_detail(&repo, &oid)
+    let t = std::time::Instant::now();
+    let r = (|| { let repo = state.open_repo()?; get_commit_detail(&repo, &oid) })();
+    state.log_command("cmd_get_commit_detail", t, &r);
+    r
 }

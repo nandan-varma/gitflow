@@ -1495,6 +1495,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "git2",
+ "log",
  "notify",
  "notify-debouncer-full",
  "serde",

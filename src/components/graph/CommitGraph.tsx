@@ -182,14 +182,16 @@ export function CommitGraph() {
         {visibleEdges.map((edge, i) => {
           const fromIdx = oidToIndex.get(edge.from_oid);
           const toIdx = oidToIndex.get(edge.to_oid);
-          if (fromIdx === undefined || toIdx === undefined) return null;
+          if (fromIdx === undefined) return null;
+          // ponytail: off-page parent → stub line to bottom of SVG
+          const toY = toIdx !== undefined ? rowY(toIdx) : svgHeight;
           return (
             <BezierConnector
               key={i}
               fromX={laneX(edge.from_lane)}
               fromY={rowY(fromIdx)}
               toX={laneX(edge.to_lane)}
-              toY={rowY(toIdx)}
+              toY={toY}
               color={laneColor(edge.color_index)}
             />
           );

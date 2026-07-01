@@ -64,22 +64,29 @@ export function CommandLog({ height }: Props) {
               ) : (
                 <XCircle size={11} style={{ color: "var(--danger)", marginTop: 2, flexShrink: 0 }} />
               )}
-              <pre
-                style={{
-                  flex: 1,
-                  fontFamily: "var(--font-mono)",
-                  fontSize: 11,
-                  color: entry.success ? "var(--text-primary)" : "var(--danger)",
-                  margin: 0,
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-all",
-                }}
-              >
-                {entry.command}
-              </pre>
-              <span style={{ fontSize: 10, color: "var(--text-muted)", flexShrink: 0 }}>
-                {entry.duration_ms}ms
-              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <pre
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 11,
+                    color: entry.success ? "var(--text-primary)" : "var(--danger)",
+                    margin: 0,
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-all",
+                  }}
+                >
+                  {entry.command}
+                </pre>
+                {!entry.success && entry.error_message && (
+                  <span style={{ fontSize: 10, color: "var(--danger)", opacity: 0.8, display: "block", marginTop: 2 }}>
+                    {entry.error_message}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", flexShrink: 0, gap: 1 }}>
+                <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{entry.duration_ms}ms</span>
+                <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{formatRelativeTime(entry.timestamp)}</span>
+              </div>
             </div>
           ))
         )}

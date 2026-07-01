@@ -25,7 +25,13 @@ pub fn run() {
     let app_state = AppState::new(log_tx);
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_log::Builder::new().build())
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .level(log::LevelFilter::Warn)
+                .level_for("gitflow_studio_lib", log::LevelFilter::Debug)
+                .level_for("tauri_plugin_updater", log::LevelFilter::Off)
+                .build()
+        )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
