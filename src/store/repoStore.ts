@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { ipc } from "../lib/ipc";
+import { ipc, toErrMsg } from "../lib/ipc";
 import type { RepoInfo } from "../types/git";
 
 interface RepoStore {
@@ -42,7 +42,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       set({ currentRepoPath: info.path, repoInfo: info, isOpening: false });
       get().addRecentRepo(info.path);
     } catch (e: unknown) {
-      set({ isOpening: false, openError: String(e) });
+      set({ isOpening: false, openError: toErrMsg(e) });
       throw e;
     }
   },

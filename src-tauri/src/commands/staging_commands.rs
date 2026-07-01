@@ -14,7 +14,9 @@ pub async fn cmd_stage_file(path: String, state: State<'_, AppState>) -> Result<
 #[tauri::command]
 pub async fn cmd_unstage_file(path: String, state: State<'_, AppState>) -> Result<(), AppError> {
     let repo = state.open_repo()?;
-    unstage_file(&repo, &path)
+    let result = unstage_file(&repo, &path);
+    eprintln!("[unstage] path={path:?} result={result:?}");
+    result
 }
 
 #[tauri::command]

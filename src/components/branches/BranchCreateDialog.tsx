@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useCreateBranch, useSwitchBranch } from "../../hooks/useBranches";
 import { useUIStore } from "../../store/uiStore";
+import { toErrMsg } from "../../lib/ipc";
 
 export function BranchCreateDialog() {
   const [name, setName] = useState("");
@@ -19,7 +20,7 @@ export function BranchCreateDialog() {
       await switchBranch.mutateAsync(name);
       closeDialog();
     } catch (e: unknown) {
-      setError(String(e));
+      setError(toErrMsg(e));
     }
   };
 

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useMergeBranch } from "../../hooks/useBranches";
 import { useUIStore } from "../../store/uiStore";
+import { toErrMsg } from "../../lib/ipc";
 
 export function MergeDialog() {
   const { closeDialog, dialogPayload, setActiveView } = useUIStore();
@@ -17,7 +18,7 @@ export function MergeDialog() {
       }
       closeDialog();
     } catch (e: unknown) {
-      setError(String(e));
+      setError(toErrMsg(e));
     }
   };
 

@@ -4,6 +4,7 @@ import { check as checkUpdate } from "@tauri-apps/plugin-updater";
 import { useSettingsStore } from "../../store/settingsStore";
 import { useUIStore } from "../../store/uiStore";
 import { Info } from "lucide-react";
+import { toErrMsg } from "../../lib/ipc";
 
 type UpdateState =
   | { status: "idle" }
@@ -75,7 +76,7 @@ export function SettingsPage() {
         setUpdateState({ status: "available", version: update.version, body: update.body, update });
       }
     } catch (e: unknown) {
-      const msg = String(e);
+      const msg = toErrMsg(e);
       // ponytail: pubkey not configured yet — guide the user instead of showing a raw error
       if (msg.includes("pubkey") || msg.includes("key") || msg.includes("Not Found") || msg.includes("404")) {
         setUpdateState({ status: "error", message: "Updater not configured. Run: pnpm tauri signer generate, then add the pubkey to tauri.conf.json." });
@@ -93,7 +94,7 @@ export function SettingsPage() {
       await updateState.update!.downloadAndInstall();
       setUpdateState({ status: "ready", version });
     } catch (e: unknown) {
-      setUpdateState({ status: "error", message: String(e) });
+      setUpdateState({ status: "error", message: toErrMsg(e) });
     }
   }
 

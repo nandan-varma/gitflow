@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { GitCommit, GitMerge, Sparkles } from "lucide-react";
-import { ipc } from "../../lib/ipc";
+import { ipc, toErrMsg } from "../../lib/ipc";
 import { queryClient } from "../../lib/queryClient";
 import { useUIStore } from "../../store/uiStore";
 import { useFileStatus } from "../../hooks/useFileStatus";
@@ -34,7 +34,7 @@ export function CommitEditor() {
       queryClient.invalidateQueries({ queryKey: ["repo"] });
       setActiveView("graph");
     } catch (e: unknown) {
-      setError(String(e));
+      setError(toErrMsg(e));
     } finally {
       setIsCommitting(false);
     }

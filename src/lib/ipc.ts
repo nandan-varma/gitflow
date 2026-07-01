@@ -1,4 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
+
+export const toErrMsg = (e: unknown): string =>
+  e && typeof e === "object" && "message" in e ? String((e as { message: unknown }).message) : String(e);
 import type { RepoInfo, FileStatus, BranchInfo, StashEntry, MergeResult, ConflictEntry, ConflictDetail, TagEntry, RebaseOutcome } from "../types/git";
 import type { FileDiff, DiffLine } from "../types/diff";
 import type { GraphPage, CommitDetail } from "../types/graph";

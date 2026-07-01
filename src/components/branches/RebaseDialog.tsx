@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useRebaseBranch } from "../../hooks/useBranches";
 import { useUIStore } from "../../store/uiStore";
+import { toErrMsg } from "../../lib/ipc";
 
 export function RebaseDialog() {
   const { closeDialog, dialogPayload } = useUIStore();
@@ -14,7 +15,7 @@ export function RebaseDialog() {
       await rebase.mutateAsync(upstream);
       closeDialog();
     } catch (e: unknown) {
-      setError(String(e));
+      setError(toErrMsg(e));
     }
   };
 

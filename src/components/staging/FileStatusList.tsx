@@ -1,7 +1,7 @@
 import React from "react";
 import { FilePlus, FileMinus, FileEdit, FileX, ArrowRight } from "lucide-react";
 import type { FileStatus } from "../../types/git";
-import { ipc } from "../../lib/ipc";
+import { ipc, toErrMsg } from "../../lib/ipc";
 import { queryClient } from "../../lib/queryClient";
 import { useUIStore } from "../../store/uiStore";
 
@@ -35,8 +35,7 @@ export function FileStatusList({ files, staged, onStageAll, onUnstageAll }: Prop
       queryClient.invalidateQueries({ queryKey: ["status"] });
       queryClient.invalidateQueries({ queryKey: ["diff"] });
     } catch (e: unknown) {
-      const msg = e && typeof e === "object" && "message" in e ? String((e as { message: unknown }).message) : String(e);
-      setError(msg);
+      setError(toErrMsg(e));
     }
   };
 
@@ -66,7 +65,7 @@ export function FileStatusList({ files, staged, onStageAll, onUnstageAll }: Prop
         <div style={{ flex: 1 }} />
         {staged && onUnstageAll && (
           <button
-            onClick={() => { setError(null); onUnstageAll().catch((e: unknown) => setError(String(e))); }}
+            onClick={() => { setError(null); onUnstageAll().catch((e: unknown) => setError(toErrMsg(e))); }}
             style={{ fontSize: 11, color: "var(--text-muted)", padding: "2px 6px" }}
           >
             Unstage all
@@ -74,7 +73,7 @@ export function FileStatusList({ files, staged, onStageAll, onUnstageAll }: Prop
         )}
         {!staged && onStageAll && (
           <button
-            onClick={() => { setError(null); onStageAll().catch((e: unknown) => setError(String(e))); }}
+            onClick={() => { setError(null); onStageAll().catch((e: unknown) => setError(toErrMsg(e))); }}
             style={{ fontSize: 11, color: "var(--text-muted)", padding: "2px 6px" }}
           >
             Stage all

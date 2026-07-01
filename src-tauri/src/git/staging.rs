@@ -17,16 +17,35 @@ pub fn stage_file(repo: &git2::Repository, path: &str) -> Result<(), AppError> {
 }
 
 pub fn unstage_file(repo: &git2::Repository, path: &str) -> Result<(), AppError> {
-    // reset_default(None, paths) = git reset HEAD -- paths.
-    // Libgit2 handles all cases: existing files are restored from HEAD,
-    // new files (not in HEAD) are removed from the index.
-    // The only exception is an empty repo with no HEAD at all.
-    if repo.head().is_ok() {
-        return Ok(repo.reset_default(None, [path].iter())?);
-    }
-    // No HEAD (initial commit, nothing committed yet): remove from index directly.
+    let p = std::path::Path::new(path);
     let mut index = repo.index()?;
-    index.remove_path(std::path::Path::new(path))?;
+
+    // Find the HEAD tree entry for this path (None if new file or no HEAD).
+    let head_entry = repo
+        .head().ok()
+        .and_then(|h| h.peel_to_tree().ok())
+        .and_then(|tree| tree.get_path(p).ok());
+
+    match head_entry {
+        Some(entry) => {
+            // File exists in HEAD: restore index entry to the HEAD version.
+            let ie = git2::IndexEntry {
+                ctime: git2::IndexTime::new(0, 0),
+                mtime: git2::IndexTime::new(0, 0),
+                dev: 0, ino: 0, mode: entry.filemode() as u32,
+                uid: 0, gid: 0, file_size: 0,
+                id: entry.id(),
+                flags: 0, flags_extended: 0,
+                path: path.as_bytes().to_vec(),
+            };
+            index.add(&ie)?;
+        }
+        None => {
+            // New file (not in HEAD): remove from index entirely.
+            index.remove_path(p)?;
+        }
+    }
+
     index.write()?;
     Ok(())
 }
