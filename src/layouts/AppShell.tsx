@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useEffect, useState, useCallback } from "react";
 import { useUIStore } from "../store/uiStore";
 import { RepoRail } from "../components/rail/RepoRail";
 import { Toolbar } from "../components/toolbar/Toolbar";
@@ -13,11 +13,15 @@ import { BranchCreateDialog } from "../components/branches/BranchCreateDialog";
 import { MergeDialog } from "../components/branches/MergeDialog";
 import { RebaseDialog } from "../components/branches/RebaseDialog";
 import { StashPushDialog } from "../components/stash/StashPushDialog";
+import { AboutDialog } from "../components/about/AboutDialog";
+import { SettingsPage } from "../components/settings/SettingsPage";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { useRepoChangeListener, useRepoInfo } from "../hooks/useRepository";
 import { useCommandLogStore } from "../store/commandLogStore";
 import { useIpcEvent } from "../hooks/useIpcEvent";
 import { useContinueRebase, useAbortRebase } from "../hooks/useBranches";
+import { useSettingsStore } from "../store/settingsStore";
+import { check as checkUpdate } from "@tauri-apps/plugin-updater";
 import type { CommandLogEntry } from "../types/git";
 
 function RebaseActionBar() {
@@ -56,20 +60,100 @@ function RebaseActionBar() {
   );
 }
 
+function ResizeDivider({ onDelta }: { onDelta: (dx: number, done?: boolean) => void }) {
+  const [dragging, setDragging] = useState(false);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setDragging(true);
+    let last = e.clientX;
+    const onMove = (ev: MouseEvent) => {
+      onDelta(ev.clientX - last);
+      last = ev.clientX;
+    };
+    const onUp = () => {
+      setDragging(false);
+      onDelta(0, true);
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, [onDelta]);
+
+  return (
+    <div
+      onMouseDown={handleMouseDown}
+      className={`resize-divider${dragging ? " dragging" : ""}`}
+    />
+  );
+}
+
 export function AppShell() {
-  const { activeView, railCollapsed, commandLogOpen, commandLogHeight, activeDialog } = useUIStore();
+  const {
+    activeView, railCollapsed, commandLogOpen, commandLogHeight,
+    activeDialog, railWidth, contextPanelWidth, setRailWidth, setContextPanelWidth,
+    setActiveView,
+  } = useUIStore();
   const pushEntry = useCommandLogStore((s) => s.pushEntry);
   const { data: repoInfo } = useRepoInfo();
 
   useRepoChangeListener();
   useIpcEvent<CommandLogEntry>("command-log", pushEntry);
 
+  const checkUpdatesOnStartup = useSettingsStore((s) => s.checkUpdatesOnStartup);
+  useEffect(() => {
+    if (!checkUpdatesOnStartup) return;
+    checkUpdate().then((u) => {
+      if (u) {
+        setActiveView("settings");
+      }
+    }).catch(() => {});
+  }, []);
+
   const isRebasing = repoInfo?.state === "rebase";
 
+  // CSS vars drive width during drag (no React re-render per pixel)
+  const railRef = useRef(railWidth);
+  const ctxRef = useRef(contextPanelWidth);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty("--rail-dyn", `${railWidth}px`);
+    railRef.current = railWidth;
+  }, [railWidth]);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty("--ctx-dyn", `${contextPanelWidth}px`);
+    ctxRef.current = contextPanelWidth;
+  }, [contextPanelWidth]);
+
+  const handleRailDelta = useCallback((dx: number, done?: boolean) => {
+    railRef.current = Math.max(160, Math.min(420, railRef.current + dx));
+    document.documentElement.style.setProperty("--rail-dyn", `${railRef.current}px`);
+    if (done) setRailWidth(railRef.current);
+  }, [setRailWidth]);
+
+  const handleCtxDelta = useCallback((dx: number, done?: boolean) => {
+    ctxRef.current = Math.max(200, Math.min(600, ctxRef.current - dx));
+    document.documentElement.style.setProperty("--ctx-dyn", `${ctxRef.current}px`);
+    if (done) setContextPanelWidth(ctxRef.current);
+  }, [setContextPanelWidth]);
+
   return (
-    <div className={`app-shell${railCollapsed ? " rail-collapsed" : ""}`} style={{ position: "relative" }}>
+    <div className="app-shell">
       {/* Left Rail */}
-      <RepoRail />
+      <div style={{
+        width: railCollapsed ? 48 : "var(--rail-dyn)",
+        flexShrink: 0,
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+      }}>
+        <RepoRail />
+      </div>
+
+      {/* Rail resize handle */}
+      {!railCollapsed && <ResizeDivider onDelta={handleRailDelta} />}
 
       {/* Main Column */}
       <div className="main-area" style={{ position: "relative" }}>
@@ -96,23 +180,33 @@ export function AppShell() {
               <StashManager />
             </ErrorBoundary>
           )}
+          {activeView === "settings" && <SettingsPage />}
         </div>
         <CommitBar />
 
-        {/* Command Log Drawer */}
-        {commandLogOpen && (
-          <CommandLog height={commandLogHeight} />
-        )}
+        {commandLogOpen && <CommandLog height={commandLogHeight} />}
       </div>
 
+      {/* Context resize handle */}
+      <ResizeDivider onDelta={handleCtxDelta} />
+
       {/* Right Context Panel */}
-      <ContextPanel />
+      <div style={{
+        width: "var(--ctx-dyn)",
+        flexShrink: 0,
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+      }}>
+        <ContextPanel />
+      </div>
 
       {/* Dialogs */}
       {activeDialog === "branch-create" && <BranchCreateDialog />}
       {activeDialog === "merge" && <MergeDialog />}
       {activeDialog === "rebase" && <RebaseDialog />}
       {activeDialog === "stash-push" && <StashPushDialog />}
+      {activeDialog === "about" && <AboutDialog />}
     </div>
   );
 }

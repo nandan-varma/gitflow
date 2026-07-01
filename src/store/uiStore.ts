@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
-type ActiveView = "graph" | "staging" | "diff" | "conflicts" | "stash";
-type ActiveDialog = null | "branch-create" | "merge" | "rebase" | "stash-push" | "branch-delete";
+type ActiveView = "graph" | "staging" | "diff" | "conflicts" | "stash" | "settings";
+type ActiveDialog = null | "branch-create" | "merge" | "rebase" | "stash-push" | "branch-delete" | "about";
 
 interface UIStore {
   activeView: ActiveView;
@@ -10,6 +10,7 @@ interface UIStore {
   diffMode: "unified" | "split";
   commandLogOpen: boolean;
   commandLogHeight: number;
+  railWidth: number;
   contextPanelWidth: number;
   railCollapsed: boolean;
   activeDialog: ActiveDialog;
@@ -22,6 +23,7 @@ interface UIStore {
   setDiffMode: (mode: "unified" | "split") => void;
   toggleCommandLog: () => void;
   setCommandLogHeight: (h: number) => void;
+  setRailWidth: (w: number) => void;
   setContextPanelWidth: (w: number) => void;
   toggleRail: () => void;
   openDialog: (dialog: ActiveDialog, payload?: unknown) => void;
@@ -36,6 +38,7 @@ export const useUIStore = create<UIStore>((set) => ({
   diffMode: "unified",
   commandLogOpen: false,
   commandLogHeight: 180,
+  railWidth: 220,
   contextPanelWidth: 320,
   railCollapsed: false,
   activeDialog: null,
@@ -48,6 +51,7 @@ export const useUIStore = create<UIStore>((set) => ({
   setDiffMode: (diffMode) => set({ diffMode }),
   toggleCommandLog: () => set((s) => ({ commandLogOpen: !s.commandLogOpen })),
   setCommandLogHeight: (commandLogHeight) => set({ commandLogHeight }),
+  setRailWidth: (railWidth) => set({ railWidth }),
   setContextPanelWidth: (contextPanelWidth) => set({ contextPanelWidth }),
   toggleRail: () => set((s) => ({ railCollapsed: !s.railCollapsed })),
   openDialog: (activeDialog, payload = null) => set({ activeDialog, dialogPayload: payload }),

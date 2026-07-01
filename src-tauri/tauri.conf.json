@@ -24,9 +24,20 @@
       "csp": "default-src 'self' tauri: asset: https://asset.localhost; img-src 'self' data: asset: https://asset.localhost; style-src 'self' 'unsafe-inline'"
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDc5MkIyNERBNjQ3NjU1MzcKUldRM1ZYWmsyaVFyZVQ5R0JZdkExdnBrMm5sdStMRHlUcWJlbVl2Tlh3MVB6clRxU09jSG1lVlIK",
+      "endpoints": [
+        "https://github.com/nandan-varma/gitflow/releases/latest/download/latest.json"
+      ]
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
