@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCommitGraph } from "../../hooks/useCommitGraph";
 import { useUIStore } from "../../store/uiStore";
@@ -8,8 +8,91 @@ import {
   LANE_WIDTH, ROW_HEIGHT, laneX, rowY, laneColor,
 } from "../../lib/graphLayout";
 import type { GraphNode, GraphEdge } from "../../types/graph";
-import { RepoSelector } from "../toolbar/RepoSelector";
 import { useRepoStore } from "../../store/repoStore";
+import { open } from "@tauri-apps/plugin-dialog";
+import { FolderOpen, GitBranch } from "lucide-react";
+
+const RECENT_VISIBLE = 5;
+
+function WelcomeScreen() {
+  const { openRepository, recentRepos, isOpening } = useRepoStore();
+  const [showAll, setShowAll] = useState(false);
+
+  const handleOpen = async () => {
+    const selected = await open({ directory: true, multiple: false });
+    if (selected && typeof selected === "string") openRepository(selected);
+  };
+
+  const displayed = showAll ? recentRepos : recentRepos.slice(0, RECENT_VISIBLE);
+  const hiddenCount = recentRepos.length - RECENT_VISIBLE;
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", flexDirection: "column", gap: 32 }}>
+      {/* Header */}
+      <div style={{ textAlign: "center" }}>
+        <div style={{ color: "var(--accent)", marginBottom: 10 }}>
+          <GitBranch size={36} strokeWidth={1.5} />
+        </div>
+        <div style={{ fontSize: 18, fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>GitFlow Studio</div>
+        <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Git repository management</div>
+      </div>
+
+      {/* Open button */}
+      <button
+        onClick={handleOpen}
+        disabled={isOpening}
+        style={{
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "8px 20px", borderRadius: 6,
+          background: "var(--accent)", color: "#fff",
+          fontSize: 13, fontWeight: 500,
+          opacity: isOpening ? 0.7 : 1,
+        }}
+      >
+        <FolderOpen size={14} />
+        {isOpening ? "Opening…" : "Open Repository"}
+      </button>
+
+      {/* Recent repos */}
+      {recentRepos.length > 0 && (
+        <div style={{ width: 420 }}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.08em", marginBottom: 8 }}>
+            RECENT REPOSITORIES
+          </div>
+          {displayed.map((p) => (
+            <button
+              key={p}
+              onClick={() => openRepository(p)}
+              style={{
+                display: "flex", alignItems: "center", gap: 12,
+                width: "100%", padding: "8px 10px", borderRadius: 5,
+                textAlign: "left", color: "var(--text-primary)",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = "var(--bg-hover)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+            >
+              <FolderOpen size={13} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
+              <span style={{ fontWeight: 500, fontSize: 13, flexShrink: 0 }}>
+                {p.split("/").pop()}
+              </span>
+              <span style={{ fontSize: 11, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "var(--font-mono)" }}>
+                {p}
+              </span>
+            </button>
+          ))}
+          {!showAll && hiddenCount > 0 && (
+            <button
+              onClick={() => setShowAll(true)}
+              style={{ marginTop: 4, padding: "6px 10px", fontSize: 12, color: "var(--text-muted)" }}
+            >
+              {hiddenCount} more…
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function CommitGraph() {
   const { data, fetchNextPage, hasNextPage, isFetching } = useCommitGraph();
@@ -80,12 +163,7 @@ export function CommitGraph() {
   };
 
   if (!currentRepoPath) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", flexDirection: "column", gap: 16 }}>
-        <span style={{ color: "var(--text-muted)" }}>Open a git repository to get started</span>
-        <RepoSelector />
-      </div>
-    );
+    return <WelcomeScreen />;
   }
 
   return (

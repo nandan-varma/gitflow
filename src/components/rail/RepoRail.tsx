@@ -1,112 +1,62 @@
 import React from "react";
-import {
-  GitBranch, Tag, Archive, GitMerge, Layers,
-  FolderOpen, ChevronDown, ChevronRight as ChevronRightIcon,
-} from "lucide-react";
+import { GitMerge, Layers, Archive } from "lucide-react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useUIStore } from "../../store/uiStore";
 import { useRepoStore } from "../../store/repoStore";
 import { BranchList } from "./BranchList";
 import { StashList } from "./StashList";
 import { TagList } from "./TagList";
 
+function TrafficLights() {
+  return (
+    <div className="traffic-lights">
+      <button className="traffic-light close" title="Close" onClick={() => getCurrentWindow().close()} />
+      <button className="traffic-light min"   title="Minimize" onClick={() => getCurrentWindow().minimize()} />
+      <button className="traffic-light max"   title="Maximize" onClick={() => getCurrentWindow().toggleMaximize()} />
+    </div>
+  );
+}
+
 export function RepoRail() {
   const { railCollapsed, activeView, setActiveView } = useUIStore();
   const { currentRepoPath } = useRepoStore();
 
-  if (!currentRepoPath) {
-    return (
-      <aside
-        style={{
-          background: "var(--bg-surface)",
-          borderRight: "1px solid var(--border)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "var(--text-muted)",
-          fontSize: 12,
-        }}
-      >
-        {!railCollapsed && <span>No repo open</span>}
-      </aside>
-    );
-  }
-
   if (railCollapsed) {
     return (
-      <aside
-        style={{
-          width: 48,
-          background: "var(--bg-surface)",
-          borderRight: "1px solid var(--border)",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          padding: "8px 0",
-          gap: 4,
-        }}
-      >
-        <NavIcon
-          icon={<GitMerge size={16} />}
-          active={activeView === "graph"}
-          onClick={() => setActiveView("graph")}
-          title="Commit Graph"
-        />
-        <NavIcon
-          icon={<Layers size={16} />}
-          active={activeView === "staging"}
-          onClick={() => setActiveView("staging")}
-          title="Staging"
-        />
-        <NavIcon
-          icon={<Archive size={16} />}
-          active={activeView === "stash"}
-          onClick={() => setActiveView("stash")}
-          title="Stashes"
-        />
+      <aside style={{ background: "var(--bg-surface)", display: "flex", flexDirection: "column", alignItems: "center", height: "100%" }}>
+        <div data-tauri-drag-region className="panel-header" style={{ width: "100%", justifyContent: "center", paddingLeft: 0, paddingRight: 0 }}>
+          <TrafficLights />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "8px 0", gap: 4 }}>
+          <NavIcon icon={<GitMerge size={16} />} active={activeView === "graph"} onClick={() => setActiveView("graph")} title="Commit Graph" />
+          <NavIcon icon={<Layers size={16} />}   active={activeView === "staging"} onClick={() => setActiveView("staging")} title="Staging" />
+          <NavIcon icon={<Archive size={16} />}  active={activeView === "stash"} onClick={() => setActiveView("stash")} title="Stashes" />
+        </div>
       </aside>
     );
   }
 
   return (
-    <aside
-      style={{
-        background: "var(--bg-surface)",
-        borderRight: "1px solid var(--border)",
-        overflowY: "auto",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
+    <aside style={{ background: "var(--bg-surface)", display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+      {/* Drag region header with traffic lights */}
+      <div data-tauri-drag-region className="panel-header">
+        <TrafficLights />
+        {!currentRepoPath && <span style={{ fontSize: 11, color: "var(--text-muted)" }}>No repo open</span>}
+      </div>
+
       {/* Navigation */}
-      <section style={{ padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
-        <NavItem
-          icon={<GitMerge size={14} />}
-          label="Commit Graph"
-          active={activeView === "graph"}
-          onClick={() => setActiveView("graph")}
-        />
-        <NavItem
-          icon={<Layers size={14} />}
-          label="Staging Area"
-          active={activeView === "staging"}
-          onClick={() => setActiveView("staging")}
-        />
-        <NavItem
-          icon={<Archive size={14} />}
-          label="Stashes"
-          active={activeView === "stash"}
-          onClick={() => setActiveView("stash")}
-        />
+      <section style={{ padding: "8px 0", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
+        <NavItem icon={<GitMerge size={14} />} label="Commit Graph" active={activeView === "graph"} onClick={() => setActiveView("graph")} />
+        <NavItem icon={<Layers size={14} />}   label="Staging Area" active={activeView === "staging"} onClick={() => setActiveView("staging")} />
+        <NavItem icon={<Archive size={14} />}  label="Stashes"      active={activeView === "stash"} onClick={() => setActiveView("stash")} />
       </section>
 
-      {/* Branches */}
-      <BranchList />
-
-      {/* Tags */}
-      <TagList />
-
-      {/* Stashes */}
-      <StashList />
+      {/* Scrollable content */}
+      <div style={{ flex: 1, overflowY: "auto" }}>
+        <BranchList />
+        <TagList />
+        <StashList />
+      </div>
     </aside>
   );
 }

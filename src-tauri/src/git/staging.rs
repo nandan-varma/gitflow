@@ -17,14 +17,17 @@ pub fn stage_file(repo: &git2::Repository, path: &str) -> Result<(), AppError> {
 }
 
 pub fn unstage_file(repo: &git2::Repository, path: &str) -> Result<(), AppError> {
-    let head = repo.head().ok().and_then(|h| h.peel_to_tree().ok());
-    if let Some(tree) = head {
-        repo.reset_default(Some(tree.as_object()), [path].iter())?;
-    } else {
-        let mut index = repo.index()?;
-        index.remove_path(std::path::Path::new(path))?;
-        index.write()?;
+    // reset_default(None, paths) = git reset HEAD -- paths.
+    // Libgit2 handles all cases: existing files are restored from HEAD,
+    // new files (not in HEAD) are removed from the index.
+    // The only exception is an empty repo with no HEAD at all.
+    if repo.head().is_ok() {
+        return Ok(repo.reset_default(None, [path].iter())?);
     }
+    // No HEAD (initial commit, nothing committed yet): remove from index directly.
+    let mut index = repo.index()?;
+    index.remove_path(std::path::Path::new(path))?;
+    index.write()?;
     Ok(())
 }
 

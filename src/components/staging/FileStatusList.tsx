@@ -16,14 +16,16 @@ const STATUS_ICON: Record<string, React.ReactNode> = {
 interface Props {
   files: FileStatus[];
   staged: boolean;
-  onStageAll?: () => void;
-  onUnstageAll?: () => void;
+  onStageAll?: () => Promise<void>;
+  onUnstageAll?: () => Promise<void>;
 }
 
 export function FileStatusList({ files, staged, onStageAll, onUnstageAll }: Props) {
   const { selectedFilePath, selectFile } = useUIStore();
+  const [error, setError] = React.useState<string | null>(null);
 
   const handleFileAction = async (file: FileStatus) => {
+    setError(null);
     try {
       if (staged) {
         await ipc.unstageFile(file.path);
@@ -32,13 +34,20 @@ export function FileStatusList({ files, staged, onStageAll, onUnstageAll }: Prop
       }
       queryClient.invalidateQueries({ queryKey: ["status"] });
       queryClient.invalidateQueries({ queryKey: ["diff"] });
-    } catch (e) {
-      console.error(e);
+    } catch (e: unknown) {
+      const msg = e && typeof e === "object" && "message" in e ? String((e as { message: unknown }).message) : String(e);
+      setError(msg);
     }
   };
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      {error && (
+        <div style={{ padding: "4px 12px", fontSize: 11, color: "var(--danger)", background: "rgba(244,67,54,0.1)", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span>{error}</span>
+          <button onClick={() => setError(null)} style={{ color: "var(--text-muted)", fontSize: 12 }}>×</button>
+        </div>
+      )}
       <div
         style={{
           display: "flex",
@@ -56,12 +65,18 @@ export function FileStatusList({ files, staged, onStageAll, onUnstageAll }: Prop
         </span>
         <div style={{ flex: 1 }} />
         {staged && onUnstageAll && (
-          <button onClick={onUnstageAll} style={{ fontSize: 11, color: "var(--text-muted)", padding: "2px 6px" }}>
+          <button
+            onClick={() => { setError(null); onUnstageAll().catch((e: unknown) => setError(String(e))); }}
+            style={{ fontSize: 11, color: "var(--text-muted)", padding: "2px 6px" }}
+          >
             Unstage all
           </button>
         )}
         {!staged && onStageAll && (
-          <button onClick={onStageAll} style={{ fontSize: 11, color: "var(--text-muted)", padding: "2px 6px" }}>
+          <button
+            onClick={() => { setError(null); onStageAll().catch((e: unknown) => setError(String(e))); }}
+            style={{ fontSize: 11, color: "var(--text-muted)", padding: "2px 6px" }}
+          >
             Stage all
           </button>
         )}
