@@ -4,6 +4,7 @@ import { useBranches, useSwitchBranch, useDeleteBranch, useRebaseBranch } from "
 import { usePullRequests } from "../../hooks/useGitHub";
 import { usePush } from "../../hooks/useRemote";
 import { useUIStore } from "../../store/uiStore";
+import { useConfirmStore } from "../../store/confirmStore";
 import type { BranchInfo } from "../../types/git";
 import type { PullRequest } from "../../types/github";
 import type { MenuItem } from "../../types/contextMenu";
@@ -76,10 +77,12 @@ function BranchItem({ branch, isRemote = false, pr }: { branch: BranchInfo; isRe
   const rebaseBranch = useRebaseBranch();
   const push = usePush();
   const { openDialog, showContextMenu } = useUIStore();
+  const showConfirm = useConfirmStore((s) => s.showConfirm);
   const [hovering, setHovering] = useState(false);
 
   return (
     <div
+      className="list-item"
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
       style={{
@@ -102,7 +105,7 @@ function BranchItem({ branch, isRemote = false, pr }: { branch: BranchInfo; isRe
             "separator",
             { label: "Push", action: () => push.mutate({ branch: branch.name, setUpstream: !branch.upstream }) },
             "separator",
-            { label: "Delete Branch", danger: true, action: () => { if (window.confirm(`Delete branch "${branch.name}"?`)) deleteBranch.mutate({ name: branch.name, force: false }); } },
+            { label: "Delete Branch", danger: true, action: () => showConfirm({ title: "Delete Branch", message: `Delete branch "${branch.name}"? This cannot be undone.`, danger: true, confirmLabel: "Delete", onConfirm: () => deleteBranch.mutate({ name: branch.name, force: false }) }) },
           );
         } else if (branch.is_head) {
           items.push(
@@ -159,7 +162,7 @@ function BranchItem({ branch, isRemote = false, pr }: { branch: BranchInfo; isRe
             <Merge size={11} />
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); if (window.confirm(`Delete branch "${branch.name}"?`)) deleteBranch.mutate({ name: branch.name, force: false }); }}
+            onClick={(e) => { e.stopPropagation(); showConfirm({ title: "Delete Branch", message: `Delete branch "${branch.name}"? This cannot be undone.`, danger: true, confirmLabel: "Delete", onConfirm: () => deleteBranch.mutate({ name: branch.name, force: false }) }); }}
             title="Delete branch"
             style={{ color: "var(--text-muted)", padding: 2 }}
           >

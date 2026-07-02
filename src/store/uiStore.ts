@@ -8,6 +8,7 @@ interface UIStore {
   activeView: ActiveView;
   selectedCommitOid: string | null;
   selectedFilePath: string | null;
+  selectedFileMode: "staged" | "workdir" | null;
   diffMode: "unified" | "split";
   commandLogOpen: boolean;
   commandLogHeight: number;
@@ -26,7 +27,7 @@ interface UIStore {
 
   setActiveView: (view: ActiveView) => void;
   selectCommit: (oid: string | null) => void;
-  selectFile: (path: string | null) => void;
+  selectFile: (path: string | null, mode?: "staged" | "workdir") => void;
   setDiffMode: (mode: "unified" | "split") => void;
   toggleCommandLog: () => void;
   setCommandLogHeight: (h: number) => void;
@@ -48,6 +49,7 @@ export const useUIStore = create<UIStore>((set) => ({
   activeView: "graph",
   selectedCommitOid: null,
   selectedFilePath: null,
+  selectedFileMode: null,
   diffMode: "unified",
   commandLogOpen: false,
   commandLogHeight: 180,
@@ -66,7 +68,7 @@ export const useUIStore = create<UIStore>((set) => ({
 
   setActiveView: (activeView) => set({ activeView }),
   selectCommit: (selectedCommitOid) => set({ selectedCommitOid }),
-  selectFile: (selectedFilePath) => set({ selectedFilePath }),
+  selectFile: (selectedFilePath, selectedFileMode) => set({ selectedFilePath, selectedFileMode: selectedFileMode ?? null }),
   setDiffMode: (diffMode) => set({ diffMode }),
   toggleCommandLog: () => set((s) => ({ commandLogOpen: !s.commandLogOpen })),
   setCommandLogHeight: (commandLogHeight) => set({ commandLogHeight }),

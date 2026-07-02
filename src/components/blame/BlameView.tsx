@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { useUIStore } from "../../store/uiStore";
 import { useBlame } from "../../hooks/useDiff";
+import { Skeleton } from "../ui/Skeleton";
 import { formatRelativeTime } from "../../lib/diffParser";
 import { ArrowLeft } from "lucide-react";
 
@@ -42,7 +43,11 @@ export function BlameView() {
         <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: "auto" }}>blame</span>
       </div>
 
-      {isLoading && <div style={{ padding: 16, color: "var(--text-muted)", fontSize: 12 }}>Loading blame…</div>}
+      {isLoading && (
+        <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+          <Skeleton variant="row" count={8} />
+        </div>
+      )}
 
       {!isLoading && lines.length === 0 && (
         <div style={{ padding: 16, color: "var(--text-muted)", fontSize: 12 }}>No blame data available.</div>

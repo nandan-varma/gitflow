@@ -3,6 +3,7 @@ import { useCommitDetail } from "../../hooks/useCommitGraph";
 import { useDiffCommit } from "../../hooks/useDiff";
 import { useUIStore } from "../../store/uiStore";
 import { DiffView } from "../diff/DiffView";
+import { Skeleton } from "../ui/Skeleton";
 import { formatRelativeTime } from "../../lib/diffParser";
 import type { ChangedFile } from "../../types/graph";
 
@@ -57,7 +58,15 @@ export function CommitDetail() {
   }
 
   if (isLoading) {
-    return <div style={{ padding: 12, color: "var(--text-muted)", fontSize: 12 }}>Loading…</div>;
+    return (
+      <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+        <Skeleton width="80%" height={16} />
+        <Skeleton width="60%" height={12} count={2} />
+        <Skeleton width="40%" height={12} />
+        <div style={{ height: 12 }} />
+        <Skeleton variant="row" count={5} />
+      </div>
+    );
   }
 
   if (!detail) return null;

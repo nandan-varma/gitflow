@@ -43,9 +43,25 @@ export function DiffView({ diff, path, mode }: Props) {
           flexShrink: 0,
         }}
       >
-        <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>
-          {diff.old_path ? `${diff.old_path} → ${diff.path}` : diff.path}
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              padding: "1px 5px",
+              borderRadius: 3,
+              background: mode === "staged" ? "rgba(255,193,7,0.15)" : "rgba(76,175,80,0.15)",
+              color: mode === "staged" ? "var(--warning)" : "var(--success)",
+            }}
+          >
+            {mode === "staged" ? "Staged" : "Unstaged"}
+          </span>
+          <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>
+            {diff.old_path ? `${diff.old_path} → ${diff.path}` : diff.path}
+          </span>
+        </div>
         <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
           <span style={{ fontSize: 11, color: "var(--success)" }}>+{diff.stats.additions}</span>
           <span style={{ fontSize: 11, color: "var(--danger)" }}>-{diff.stats.deletions}</span>

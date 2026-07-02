@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { AlertTriangle, Check, X } from "lucide-react";
+import { Skeleton } from "../ui/Skeleton";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { ipc } from "../../lib/ipc";
 import { queryClient, queryKeys } from "../../lib/queryClient";
@@ -44,6 +45,15 @@ export function ConflictEditor() {
       queryClient.invalidateQueries({ queryKey: ["status"] });
     },
   });
+
+  if (conflictsLoading) {
+    return (
+      <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+        <Skeleton width="70%" height={14} />
+        <Skeleton variant="row" count={3} />
+      </div>
+    );
+  }
 
   if (conflicts.length === 0) {
     return (

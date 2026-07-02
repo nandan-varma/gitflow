@@ -4,12 +4,13 @@ import { ipc, toErrMsg } from "../../lib/ipc";
 import { queryClient } from "../../lib/queryClient";
 import { useUIStore } from "../../store/uiStore";
 import { useFileStatus } from "../../hooks/useFileStatus";
+import { useToastStore } from "../../store/toastStore";
 
 export function CommitEditor() {
   const [message, setMessage] = useState("");
   const [isCommitting, setIsCommitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const { amending, setAmending, setActiveView } = useUIStore();
+  const addToast = useToastStore((s) => s.addToast);
   const { data: status = [] } = useFileStatus();
 
   const stagedCount = status.filter((f) => f.staged).length;
@@ -19,7 +20,6 @@ export function CommitEditor() {
   const handleCommit = async () => {
     if (!message.trim() || stagedCount === 0) return;
     setIsCommitting(true);
-    setError(null);
     try {
       if (amending) {
         await ipc.amendCommit(message);
@@ -28,13 +28,14 @@ export function CommitEditor() {
         await ipc.createCommit(message);
       }
       setMessage("");
+      addToast(amending ? "Commit amended" : "Committed successfully", "success");
       queryClient.invalidateQueries({ queryKey: ["graph"] });
       queryClient.invalidateQueries({ queryKey: ["status"] });
       queryClient.invalidateQueries({ queryKey: ["diff"] });
       queryClient.invalidateQueries({ queryKey: ["repo"] });
       setActiveView("graph");
     } catch (e: unknown) {
-      setError(toErrMsg(e));
+      addToast(toErrMsg(e), "error");
     } finally {
       setIsCommitting(false);
     }
@@ -44,12 +45,7 @@ export function CommitEditor() {
 
   return (
     <div style={{ borderTop: "1px solid var(--border)", padding: "8px 12px", display: "flex", flexDirection: "column", gap: 6 }}>
-      {error && (
-        <div style={{ fontSize: 11, color: "var(--danger)", background: "rgba(244,67,54,0.1)", padding: "5px 8px", borderRadius: 4, display: "flex", justifyContent: "space-between" }}>
-          <span>{error}</span>
-          <button onClick={() => setError(null)} style={{ color: "var(--text-muted)" }}>×</button>
-        </div>
-      )}
+      {/* Error shown via toast */}
 
       {/* textarea row */}
       <div style={{ position: "relative" }}>

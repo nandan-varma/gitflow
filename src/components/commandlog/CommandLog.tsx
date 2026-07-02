@@ -50,6 +50,7 @@ export function CommandLog({ height }: Props) {
           [...entries].reverse().map((entry) => (
             <div
               key={entry.id}
+              className="list-item"
               style={{
                 display: "flex",
                 alignItems: "flex-start",

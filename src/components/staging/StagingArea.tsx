@@ -10,7 +10,7 @@ import { queryClient } from "../../lib/queryClient";
 
 export function StagingArea() {
   const { data: status = [] } = useFileStatus();
-  const { selectedFilePath } = useUIStore();
+  const { selectedFilePath, selectedFileMode, selectFile } = useUIStore();
 
   const unstagedFiles = status.filter((f) => f.unstaged && !f.conflict);
   const stagedFiles = status.filter((f) => f.staged);
@@ -19,8 +19,13 @@ export function StagingArea() {
   const { data: stagedDiff } = useDiffStaged(selectedFilePath);
 
   const selectedFileStatus = status.find((f) => f.path === selectedFilePath);
-  const showWorkdirDiff = selectedFileStatus?.unstaged && workdirDiff;
-  const showStagedDiff = selectedFileStatus?.staged && stagedDiff;
+  const hasStaged = selectedFileStatus?.staged && stagedDiff;
+  const hasUnstaged = selectedFileStatus?.unstaged && workdirDiff;
+  const hasBoth = hasStaged && hasUnstaged;
+
+  const showMode: "staged" | "workdir" = selectedFileMode === "staged" || (selectedFileMode !== "workdir" && hasStaged)
+    ? "staged"
+    : "workdir";
 
   const stageAll = async () => {
     await ipc.stageFiles(unstagedFiles.map((f) => f.path));
@@ -58,8 +63,52 @@ export function StagingArea() {
       {/* Diff + commit */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <div style={{ flex: 1, overflow: "hidden" }}>
-          {showWorkdirDiff && <DiffView diff={workdirDiff} path={selectedFilePath!} mode="workdir" />}
-          {showStagedDiff && !showWorkdirDiff && <DiffView diff={stagedDiff} path={selectedFilePath!} mode="staged" />}
+          {selectedFilePath && hasBoth && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 0,
+                borderBottom: "1px solid var(--border)",
+                background: "var(--bg-surface)",
+                flexShrink: 0,
+                padding: "0 12px",
+              }}
+            >
+              <button
+                onClick={() => selectFile(selectedFilePath, "staged")}
+                style={{
+                  padding: "6px 12px",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: showMode === "staged" ? "var(--text-primary)" : "var(--text-muted)",
+                  borderBottom: showMode === "staged" ? "2px solid var(--accent)" : "2px solid transparent",
+                  letterSpacing: "0.02em",
+                }}
+              >
+                Staged
+              </button>
+              <button
+                onClick={() => selectFile(selectedFilePath, "workdir")}
+                style={{
+                  padding: "6px 12px",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: showMode === "workdir" ? "var(--text-primary)" : "var(--text-muted)",
+                  borderBottom: showMode === "workdir" ? "2px solid var(--accent)" : "2px solid transparent",
+                  letterSpacing: "0.02em",
+                }}
+              >
+                Unstaged
+              </button>
+            </div>
+          )}
+          {showMode === "staged" && hasStaged && (
+            <DiffView diff={stagedDiff!} path={selectedFilePath!} mode="staged" />
+          )}
+          {showMode === "workdir" && hasUnstaged && (
+            <DiffView diff={workdirDiff!} path={selectedFilePath!} mode="workdir" />
+          )}
           {!selectedFilePath && (
             <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: 12 }}>
               Select a file to view diff

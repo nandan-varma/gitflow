@@ -5,6 +5,7 @@ import { useRepoInfo } from "../../hooks/useRepository";
 import { useUIStore } from "../../store/uiStore";
 import { useBranches } from "../../hooks/useBranches";
 import { useFetch, usePush, usePull } from "../../hooks/useRemote";
+import { useToastStore } from "../../store/toastStore";
 
 export function Toolbar() {
   const { currentRepoPath } = useRepoStore();
@@ -12,9 +13,25 @@ export function Toolbar() {
   const { toggleCommandLog, toggleRail, railCollapsed, activeView, setActiveView } = useUIStore();
 
   const { data: branches = [] } = useBranches();
+  const addToast = useToastStore((s) => s.addToast);
   const fetch = useFetch();
   const push = usePush();
   const pull = usePull();
+
+  React.useEffect(() => {
+    if (fetch.isSuccess) addToast("Fetch complete", "success");
+    if (fetch.isError) addToast("Fetch failed", "error");
+  }, [fetch.isSuccess, fetch.isError]);
+
+  React.useEffect(() => {
+    if (push.isSuccess) addToast("Push complete", "success");
+    if (push.isError) addToast("Push failed", "error");
+  }, [push.isSuccess, push.isError]);
+
+  React.useEffect(() => {
+    if (pull.isSuccess) addToast("Pull complete", "success");
+    if (pull.isError) addToast("Pull failed", "error");
+  }, [pull.isSuccess, pull.isError]);
 
   const currentBranch = branches.find((b) => b.is_head);
   const hasUpstream = !!currentBranch?.upstream;

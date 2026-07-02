@@ -3,6 +3,7 @@ import { Plus, Minus, Trash2 } from "lucide-react";
 import type { DiffHunk as DiffHunkType, DiffLine } from "../../types/diff";
 import { DiffLine as DiffLineComp } from "./DiffLine";
 import { useStagingStore } from "../../store/stagingStore";
+import { useConfirmStore } from "../../store/confirmStore";
 import { useDiscardLines } from "../../hooks/useDiff";
 import { ipc } from "../../lib/ipc";
 import { queryClient } from "../../lib/queryClient";
@@ -15,6 +16,7 @@ interface Props {
 
 export function DiffHunk({ hunk, path, mode }: Props) {
   const { selectedLines, toggleLine, selectRange, clearSelection } = useStagingStore();
+  const showConfirm = useConfirmStore((s) => s.showConfirm);
   const discardLines = useDiscardLines();
 
   const lineKeys = hunk.lines.map(
@@ -94,7 +96,7 @@ export function DiffHunk({ hunk, path, mode }: Props) {
 
         {mode === "workdir" && hasSelectedPlus && (
           <button
-            onClick={handleDiscardSelected}
+            onClick={() => showConfirm({ title: "Discard Selected Lines", message: `Discard ${selectedPlusKeys.length} selected line(s) in "${path}"? This reverts these changes from the working directory.`, danger: true, confirmLabel: "Discard", onConfirm: handleDiscardSelected })}
             title="Discard selected lines"
             style={{ display: "flex", alignItems: "center", gap: 3, padding: "2px 8px", borderRadius: 3, background: "rgba(244,67,54,0.15)", color: "var(--danger)", fontSize: 11 }}
           >

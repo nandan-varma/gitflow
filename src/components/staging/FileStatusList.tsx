@@ -1,9 +1,11 @@
 import React from "react";
-import { FilePlus, FileMinus, FileEdit, FileX, ArrowRight } from "lucide-react";
+import { FilePlus, FileMinus, FileEdit, FileX, ArrowRight, Inbox } from "lucide-react";
 import type { FileStatus } from "../../types/git";
 import { ipc, toErrMsg } from "../../lib/ipc";
 import { queryClient } from "../../lib/queryClient";
 import { useUIStore } from "../../store/uiStore";
+import { useToastStore } from "../../store/toastStore";
+import { useConfirmStore } from "../../store/confirmStore";
 import type { MenuItem } from "../../types/contextMenu";
 
 const STATUS_ORDER: Record<string, number> = { conflict: 0, modified: 1, deleted: 2, added: 3, renamed: 4 };
@@ -27,10 +29,10 @@ interface Props {
 
 export function FileStatusList({ files, staged, onStageAll, onUnstageAll }: Props) {
   const { selectedFilePath, selectFile, showContextMenu, openBlame, openFileHistory } = useUIStore();
-  const [error, setError] = React.useState<string | null>(null);
+  const addToast = useToastStore((s) => s.addToast);
+  const showConfirm = useConfirmStore((s) => s.showConfirm);
 
   const handleFileAction = async (file: FileStatus) => {
-    setError(null);
     try {
       if (staged) {
         await ipc.unstageFile(file.path);
@@ -40,29 +42,22 @@ export function FileStatusList({ files, staged, onStageAll, onUnstageAll }: Prop
       queryClient.invalidateQueries({ queryKey: ["status"] });
       queryClient.invalidateQueries({ queryKey: ["diff"] });
     } catch (e: unknown) {
-      setError(toErrMsg(e));
+      addToast(toErrMsg(e), "error");
     }
   };
 
   const handleDiscard = async (file: FileStatus) => {
-    setError(null);
     try {
       await ipc.discardChanges(file.path);
       queryClient.invalidateQueries({ queryKey: ["status"] });
       queryClient.invalidateQueries({ queryKey: ["diff"] });
     } catch (e: unknown) {
-      setError(toErrMsg(e));
+      addToast(toErrMsg(e), "error");
     }
   };
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      {error && (
-        <div style={{ padding: "4px 12px", fontSize: 11, color: "var(--danger)", background: "rgba(244,67,54,0.1)", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span>{error}</span>
-          <button onClick={() => setError(null)} style={{ color: "var(--text-muted)", fontSize: 12 }}>×</button>
-        </div>
-      )}
       <div
         style={{
           display: "flex",
@@ -81,7 +76,7 @@ export function FileStatusList({ files, staged, onStageAll, onUnstageAll }: Prop
         <div style={{ flex: 1 }} />
         {staged && onUnstageAll && (
           <button
-            onClick={() => { setError(null); onUnstageAll().catch((e: unknown) => setError(toErrMsg(e))); }}
+            onClick={() => { onUnstageAll().catch((e: unknown) => addToast(toErrMsg(e), "error")); }}
             style={{ fontSize: 11, color: "var(--text-muted)", padding: "2px 6px" }}
           >
             Unstage all
@@ -89,7 +84,7 @@ export function FileStatusList({ files, staged, onStageAll, onUnstageAll }: Prop
         )}
         {!staged && onStageAll && (
           <button
-            onClick={() => { setError(null); onStageAll().catch((e: unknown) => setError(toErrMsg(e))); }}
+            onClick={() => { onStageAll().catch((e: unknown) => addToast(toErrMsg(e), "error")); }}
             style={{ fontSize: 11, color: "var(--text-muted)", padding: "2px 6px" }}
           >
             Stage all
@@ -99,8 +94,9 @@ export function FileStatusList({ files, staged, onStageAll, onUnstageAll }: Prop
 
       <div style={{ flex: 1, overflow: "auto" }}>
         {files.length === 0 ? (
-          <div style={{ padding: "12px", color: "var(--text-muted)", fontSize: 12, textAlign: "center" }}>
-            {staged ? "Nothing staged" : "Working tree clean"}
+          <div className="empty-state" style={{ padding: "24px 12px" }}>
+            <Inbox size={24} style={{ opacity: 0.3 }} />
+            <span>{staged ? "Nothing staged" : "Working tree clean"}</span>
           </div>
         ) : (() => {
           const sorted = [...files].sort((a, b) => {
@@ -128,6 +124,7 @@ export function FileStatusList({ files, staged, onStageAll, onUnstageAll }: Prop
               {groupFiles.map((file) => (
                 <div
                   key={file.path}
+                  className="list-item"
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -136,7 +133,7 @@ export function FileStatusList({ files, staged, onStageAll, onUnstageAll }: Prop
                     background: selectedFilePath === file.path ? "rgba(76,139,245,0.1)" : undefined,
                     cursor: "pointer",
                   }}
-                  onClick={() => selectFile(file.path)}
+                  onClick={() => selectFile(file.path, staged ? "staged" : "workdir")}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     const items: MenuItem[] = staged
@@ -146,7 +143,7 @@ export function FileStatusList({ files, staged, onStageAll, onUnstageAll }: Prop
                         ]
                       : [
                           { label: "Stage File", action: () => handleFileAction(file) },
-                          { label: "Discard Changes", danger: true, action: () => handleDiscard(file) },
+                          { label: "Discard Changes", danger: true, action: () => showConfirm({ title: "Discard Changes", message: `Permanently discard all unstaged changes in "${basename(file.path)}"? This cannot be undone.`, danger: true, confirmLabel: "Discard", onConfirm: () => handleDiscard(file) }) },
                           "separator",
                         ];
                     items.push(

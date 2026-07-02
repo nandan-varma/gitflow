@@ -1,5 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import { useUIStore } from "../store/uiStore";
+import { useConfirmStore } from "../store/confirmStore";
+import { useToastStore } from "../store/toastStore";
 import { RepoRail } from "../components/rail/RepoRail";
 import { Toolbar } from "../components/toolbar/Toolbar";
 import { CommitBar } from "../components/staging/CommitBar";
@@ -22,6 +24,7 @@ import { FileHistoryView } from "../components/graph/FileHistoryView";
 import { SettingsPage } from "../components/settings/SettingsPage";
 import { ContextMenu } from "../components/ContextMenu";
 import { AIChat } from "../components/ai/AIChat";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { useRepoChangeListener, useRepoInfo } from "../hooks/useRepository";
 import { useCommandLogStore } from "../store/commandLogStore";
@@ -35,6 +38,7 @@ import type { CommandLogEntry } from "../types/git";
 
 function RebaseActionBar() {
   const { setActiveView } = useUIStore();
+  const showConfirm = useConfirmStore((s) => s.showConfirm);
   const continueRebase = useContinueRebase();
   const abortRebase = useAbortRebase();
 
@@ -52,7 +56,7 @@ function RebaseActionBar() {
         Rebase in progress — resolve conflicts, then continue
       </span>
       <button
-        onClick={() => abortRebase.mutate()}
+        onClick={() => showConfirm({ title: "Abort Rebase", message: "Abort the current rebase? All changes made during the rebase will be discarded.", danger: true, confirmLabel: "Abort", onConfirm: () => abortRebase.mutate() })}
         disabled={abortRebase.isPending}
         style={{ padding: "4px 10px", fontSize: 11, borderRadius: 4, border: "1px solid var(--border)", color: "var(--text-secondary)", background: "var(--bg-elevated)" }}
       >
@@ -71,6 +75,8 @@ function RebaseActionBar() {
 
 function CherryPickActionBar() {
   const { setActiveView, setCherryPickInProgress, cherryPickOid } = useUIStore();
+  const showConfirm = useConfirmStore((s) => s.showConfirm);
+  const addToast = useToastStore((s) => s.addToast);
   const [aborting, setAborting] = useState(false);
   const [continuing, setContinuing] = useState(false);
 
@@ -100,7 +106,7 @@ function CherryPickActionBar() {
       if (outcome.type === "Success") setActiveView("graph");
     } catch (e) {
       setContinuing(false);
-      alert(`Cherry-pick continue failed: ${toErrMsg(e)}`);
+      addToast(`Cherry-pick continue failed: ${toErrMsg(e)}`, "error");
     }
   };
 
@@ -118,7 +124,7 @@ function CherryPickActionBar() {
         Cherry-pick in progress — resolve conflicts, then continue, or abort
       </span>
       <button
-        onClick={handleAbort}
+        onClick={() => showConfirm({ title: "Abort Cherry-Pick", message: "Abort the current cherry-pick? All changes made during the cherry-pick will be discarded.", danger: true, confirmLabel: "Abort", onConfirm: handleAbort })}
         disabled={aborting}
         style={{ padding: "4px 10px", fontSize: 11, borderRadius: 4, border: "1px solid var(--border)", color: "var(--text-secondary)", background: "var(--bg-elevated)" }}
       >
@@ -164,6 +170,49 @@ function ResizeDivider({ onDelta }: { onDelta: (dx: number, done?: boolean) => v
   );
 }
 
+function ViewSwitch({ activeView }: { activeView: string }) {
+  switch (activeView) {
+    case "graph":
+      return (
+        <ErrorBoundary label="Graph error">
+          <CommitGraph />
+        </ErrorBoundary>
+      );
+    case "staging":
+      return (
+        <ErrorBoundary label="Staging error">
+          <StagingArea />
+        </ErrorBoundary>
+      );
+    case "conflicts":
+      return (
+        <ErrorBoundary label="Conflict editor error">
+          <ConflictEditor />
+        </ErrorBoundary>
+      );
+    case "stash":
+      return (
+        <ErrorBoundary label="Stash error">
+          <StashManager />
+        </ErrorBoundary>
+      );
+    case "pull-requests":
+      return (
+        <ErrorBoundary label="Pull requests error">
+          <PullRequestsView />
+        </ErrorBoundary>
+      );
+    case "blame":
+      return <BlameView />;
+    case "file-history":
+      return <FileHistoryView />;
+    case "settings":
+      return <SettingsPage />;
+    default:
+      return null;
+  }
+}
+
 export function AppShell() {
   const {
     activeView, railCollapsed, commandLogOpen, commandLogHeight,
@@ -188,7 +237,6 @@ export function AppShell() {
 
   const isRebasing = repoInfo?.state === "rebase";
 
-  // CSS vars drive width during drag (no React re-render per pixel)
   const railRef = useRef(railWidth);
   const ctxRef = useRef(contextPanelWidth);
 
@@ -215,7 +263,10 @@ export function AppShell() {
   }, [setContextPanelWidth]);
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" onContextMenu={(e) => {
+      const tag = (e.target as HTMLElement).tagName.toLowerCase();
+      if (tag !== "input" && tag !== "textarea") e.preventDefault();
+    }}>
       {/* Left Rail */}
       <div style={{
         width: railCollapsed ? 48 : "var(--rail-dyn)",
@@ -223,54 +274,32 @@ export function AppShell() {
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
+        transition: "width 0.2s ease",
       }}>
         <RepoRail />
       </div>
 
-      {/* Rail resize handle */}
       {!railCollapsed && <ResizeDivider onDelta={handleRailDelta} />}
 
       {/* Main Column */}
       <div className="main-area" style={{ position: "relative" }}>
+        {/* Progress bar at top */}
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, zIndex: 100, pointerEvents: "none" }} />
+
         <Toolbar />
         <div style={{ overflow: "hidden", position: "relative", flex: 1, display: "flex", flexDirection: "column" }}>
-          {activeView === "graph" && (
-            <ErrorBoundary label="Graph error">
-              <CommitGraph />
-            </ErrorBoundary>
-          )}
-          {activeView === "staging" && (
-            <ErrorBoundary label="Staging error">
-              <StagingArea />
-            </ErrorBoundary>
-          )}
-          {activeView === "conflicts" && (
-            <ErrorBoundary label="Conflict editor error">
-              <ConflictEditor />
-              {isRebasing && <RebaseActionBar />}
-              {cherryPickInProgress && <CherryPickActionBar />}
-            </ErrorBoundary>
-          )}
-          {activeView === "stash" && (
-            <ErrorBoundary label="Stash error">
-              <StashManager />
-            </ErrorBoundary>
-          )}
-          {activeView === "pull-requests" && (
-            <ErrorBoundary label="Pull requests error">
-              <PullRequestsView />
-            </ErrorBoundary>
-          )}
-          {activeView === "blame" && <BlameView />}
-          {activeView === "file-history" && <FileHistoryView />}
-          {activeView === "settings" && <SettingsPage />}
+          <div key={activeView} className="view-enter" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            <ViewSwitch activeView={activeView} />
+            {activeView === "conflicts" && isRebasing && <RebaseActionBar />}
+            {activeView === "conflicts" && cherryPickInProgress && <CherryPickActionBar />}
+          </div>
         </div>
         {activeView !== "staging" && activeView !== "settings" && <CommitBar />}
 
         {commandLogOpen && <CommandLog height={commandLogHeight} />}
       </div>
 
-      {/* Context resize handle + panel — only relevant in graph view */}
+      {/* Context resize handle + panel */}
       {activeView === "graph" && (
         <>
           <ResizeDivider onDelta={handleCtxDelta} />
@@ -296,6 +325,7 @@ export function AppShell() {
       {activeDialog === "about" && <AboutDialog />}
       <ContextMenu />
       <AIChat />
+      <ConfirmDialog />
     </div>
   );
 }

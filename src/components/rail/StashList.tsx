@@ -47,6 +47,7 @@ export function StashList() {
       {!collapsed && stashes.map((s) => (
         <div
           key={s.index}
+          className="list-item"
           style={{
             padding: "4px 12px 4px 24px",
             fontSize: 12,

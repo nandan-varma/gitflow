@@ -3,6 +3,7 @@ import { laneX, rowY, NODE_RADIUS, ROW_HEIGHT, LANE_WIDTH, laneColor } from "../
 import { formatRelativeTime } from "../../lib/diffParser";
 import type { GraphNode } from "../../types/graph";
 import { useUIStore } from "../../store/uiStore";
+import { useToastStore } from "../../store/toastStore";
 import { ipc } from "../../lib/ipc";
 import { queryClient } from "../../lib/queryClient";
 import { toErrMsg } from "../../lib/ipc";
@@ -19,6 +20,7 @@ export function CommitNode({ node, selected, onSelect, laneOffset }: Props) {
   const midY = ROW_HEIGHT / 2;
   const color = laneColor(node.color_index);
   const { showContextMenu, openDialog, openBlame, setActiveView, setCherryPickInProgress } = useUIStore();
+  const addToast = useToastStore((s) => s.addToast);
 
   return (
     <div
@@ -42,7 +44,7 @@ export function CommitNode({ node, selected, onSelect, laneOffset }: Props) {
                 queryClient.invalidateQueries({ queryKey: ["status"] });
                 queryClient.invalidateQueries({ queryKey: ["branches"] });
               }
-            } catch (e) { alert(`Cherry-pick failed: ${toErrMsg(e)}`); }
+            } catch (e) { addToast(`Cherry-pick failed: ${toErrMsg(e)}`, "error"); }
           }},
           "separator",
           { label: "Open Repo in VS Code", action: () => { ipc.openInVscode("").catch(() => {}); } },
@@ -54,7 +56,7 @@ export function CommitNode({ node, selected, onSelect, laneOffset }: Props) {
         height: ROW_HEIGHT,
         cursor: "pointer",
         background: selected ? "rgba(76,139,245,0.12)" : undefined,
-        borderLeft: selected ? "2px solid var(--accent)" : "2px solid transparent",
+        boxShadow: selected ? "inset 2px 0 0 var(--accent)" : undefined,
       }}
     >
       {/* SVG node dot — positioned absolutely within the lane area */}

@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus, RefreshCw, GitPullRequest, AlertCircle } from "lucide-react";
+import { Skeleton } from "../ui/Skeleton";
 import { usePullRequests, useIssues, useCreateIssueWeb } from "../../hooks/useGitHub";
 import { PullRequestItem } from "./PullRequestItem";
 import { PullRequestDetail } from "./PullRequestDetail";
@@ -188,21 +189,23 @@ export function PullRequestsView() {
         {/* List */}
         <div style={{ flex: 1, overflowY: "auto" }}>
           {isLoading ? (
-            <div style={{ padding: 16, color: "var(--text-muted)", fontSize: 12, textAlign: "center" }}>
-              Loading…
+            <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+              <Skeleton variant="row" height={40} count={4} />
             </div>
           ) : hasError ? (
-            <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 6 }}>
-              <span style={{ fontSize: 12, color: "var(--danger)" }}>
-                gh CLI not available or not authenticated.
-              </span>
-              <code style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
-                gh auth login
-              </code>
+            <div className="empty-state" style={{ padding: "24px 12px" }}>
+              <AlertCircle size={24} style={{ opacity: 0.3 }} />
+              <span style={{ fontSize: 12, color: "var(--danger)" }}>gh CLI not available or not authenticated</span>
+              <code style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)", marginTop: 4 }}>gh auth login</code>
+              <button style={{ fontSize: 11, marginTop: 8, padding: "4px 10px", borderRadius: 4, border: "1px solid var(--border)", background: "var(--bg-elevated)", cursor: "pointer" }}
+                onClick={() => handleRefresh()}>
+                Retry
+              </button>
             </div>
           ) : items.length === 0 ? (
-            <div style={{ padding: 16, color: "var(--text-muted)", fontSize: 12, textAlign: "center" }}>
-              {emptyLabel}
+            <div className="empty-state" style={{ padding: "32px 12px" }}>
+              <GitPullRequest size={28} style={{ opacity: 0.3 }} />
+              <span>{emptyLabel}</span>
             </div>
           ) : (
             items.map((item) =>

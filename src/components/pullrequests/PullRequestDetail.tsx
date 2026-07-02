@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { ExternalLink, GitMerge, GitBranch } from "lucide-react";
 import { usePullRequestDetail, useCheckoutPR, useOpenPR, useMergePR } from "../../hooks/useGitHub";
 import { useUIStore } from "../../store/uiStore";
+import { useConfirmStore } from "../../store/confirmStore";
 import type { PullRequest } from "../../types/github";
 
 export function PullRequestDetail({ pr }: { pr: PullRequest }) {
@@ -9,6 +10,7 @@ export function PullRequestDetail({ pr }: { pr: PullRequest }) {
   const checkout = useCheckoutPR();
   const openInBrowser = useOpenPR();
   const merge = useMergePR();
+  const showConfirm = useConfirmStore((s) => s.showConfirm);
   const { setActiveView } = useUIStore();
   const [strategy, setStrategy] = useState<"merge" | "squash" | "rebase">("merge");
 
@@ -94,7 +96,7 @@ export function PullRequestDetail({ pr }: { pr: PullRequest }) {
               <option value="rebase">Rebase and merge</option>
             </select>
             <button
-              onClick={() => merge.mutate({ number: pr.number, strategy, deleteBranch: true })}
+              onClick={() => showConfirm({ title: "Merge Pull Request", message: `Merge PR #${pr.number} ("${pr.title}") into ${pr.baseRefName} using ${strategy} strategy? The branch "${pr.headRefName}" will also be deleted.`, danger: true, confirmLabel: "Merge", onConfirm: () => merge.mutate({ number: pr.number, strategy, deleteBranch: true }) })}
               disabled={merge.isPending}
               style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", fontSize: 11, borderRadius: 4, background: "var(--accent)", color: "#fff", fontWeight: 500 }}
             >

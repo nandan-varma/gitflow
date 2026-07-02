@@ -21,8 +21,8 @@ export function CreatePRDialog({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}>
-      <div style={{ background: "var(--bg-surface)", borderRadius: 8, width: 480, padding: 20, display: "flex", flexDirection: "column", gap: 14, border: "1px solid var(--border)" }}>
+    <div className="dialog-overlay">
+      <div className="dialog-card" style={{ width: 480, display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={{ display: "flex", alignItems: "center" }}>
           <h3 style={{ flex: 1, fontSize: 13, fontWeight: 600, margin: 0 }}>New Pull Request</h3>
           <button onClick={onClose} style={{ color: "var(--text-muted)", padding: 2 }}><X size={14} /></button>

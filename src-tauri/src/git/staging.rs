@@ -41,7 +41,7 @@ fn unstage_in_index(repo: &git2::Repository, index: &mut git2::Index, path: &str
                 uid: 0, gid: 0, file_size: 0,
                 id: entry.id(),
                 flags: 0, flags_extended: 0,
-                path: path.as_bytes().iter().copied().chain(std::iter::once(0)).collect(),
+                path: path.as_bytes().to_vec(),
             };
             index.add(&ie)?;
         }

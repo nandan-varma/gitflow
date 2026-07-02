@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useUIStore } from "../../store/uiStore";
 import { useFileHistory } from "../../hooks/useDiff";
 import { useDiffCommit } from "../../hooks/useDiff";
+import { Skeleton } from "../ui/Skeleton";
 import { DiffView } from "../diff/DiffView";
 import { formatRelativeTime } from "../../lib/diffParser";
 import { ArrowLeft, GitCommit } from "lucide-react";
@@ -27,7 +28,14 @@ export function FileHistoryView() {
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         {/* Commit list */}
         <div style={{ width: 260, flexShrink: 0, borderRight: "1px solid var(--border)", overflowY: "auto" }}>
-          {isLoading && <div style={{ padding: 12, color: "var(--text-muted)", fontSize: 12 }}>Loading…</div>}
+          {isLoading && (
+            <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+              <Skeleton width="90%" height={12} />
+              <Skeleton width="70%" height={12} />
+              <Skeleton width="85%" height={12} />
+              <Skeleton width="60%" height={12} />
+            </div>
+          )}
           {!isLoading && entries.length === 0 && (
             <div style={{ padding: 12, color: "var(--text-muted)", fontSize: 12 }}>No history found.</div>
           )}

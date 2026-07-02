@@ -11,7 +11,7 @@ import { useUIStore } from "../../store/uiStore";
 export function TagList() {
   const [collapsed, setCollapsed] = useState(true);
   const currentRepoPath = useRepoStore((s) => s.currentRepoPath);
-  const { showContextMenu, openDialog } = useUIStore();
+  const { openDialog } = useUIStore();
 
   const { data: tags = [] } = useQuery({
     queryKey: queryKeys.tags,
@@ -66,6 +66,7 @@ export function TagList() {
             tags.map((tag) => (
               <div
                 key={tag.name}
+                className="list-item"
                 title={tag.message ?? undefined}
                 style={{
                   display: "flex",

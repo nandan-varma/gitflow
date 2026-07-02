@@ -28,6 +28,7 @@ export function ContextMenu() {
       />
       <div
         ref={ref}
+        className="menu-enter"
         style={{
           position: "fixed",
           left: x,

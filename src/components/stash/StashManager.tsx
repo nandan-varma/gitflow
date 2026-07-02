@@ -1,12 +1,15 @@
 import React from "react";
-import { Archive, Play, Trash2, Download } from "lucide-react";
+import { Archive, Play, Trash2, Download, PackageOpen } from "lucide-react";
 import { useStashes, useStashPop, useStashApply, useStashDrop } from "../../hooks/useStashes";
 import { useUIStore } from "../../store/uiStore";
+import { useConfirmStore } from "../../store/confirmStore";
+import { Skeleton } from "../ui/Skeleton";
 import { formatRelativeTime } from "../../lib/diffParser";
 
 export function StashManager() {
-  const { data: stashes = [] } = useStashes();
+  const { data: stashes = [], isLoading } = useStashes();
   const { openDialog } = useUIStore();
+  const showConfirm = useConfirmStore((s) => s.showConfirm);
   const pop = useStashPop();
   const apply = useStashApply();
   const drop = useStashDrop();
@@ -26,14 +29,20 @@ export function StashManager() {
       </div>
 
       <div style={{ flex: 1, overflow: "auto" }}>
-        {stashes.length === 0 ? (
-          <div style={{ padding: 24, textAlign: "center", color: "var(--text-muted)", fontSize: 12 }}>
-            No stashes
+        {isLoading ? (
+          <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+            <Skeleton variant="row" count={3} />
+          </div>
+        ) : stashes.length === 0 ? (
+          <div className="empty-state" style={{ padding: "32px 12px" }}>
+            <PackageOpen size={28} style={{ opacity: 0.3 }} />
+            <span>No stashes</span>
           </div>
         ) : (
           stashes.map((s) => (
             <div
               key={s.index}
+              className="list-item"
               style={{
                 padding: "10px 12px",
                 borderBottom: "1px solid var(--border)",
@@ -60,14 +69,14 @@ export function StashManager() {
                   <Download size={11} /> Apply
                 </button>
                 <button
-                  onClick={() => pop.mutate(s.index)}
+                  onClick={() => showConfirm({ title: "Pop Stash", message: `Pop stash@{${s.index}} — "${s.message}". Restores changes then deletes the stash.`, danger: true, confirmLabel: "Pop", onConfirm: () => pop.mutate(s.index) })}
                   title="Pop — restore changes and delete stash"
                   style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 3, fontSize: 11, background: "rgba(76,139,245,0.15)", color: "var(--accent)" }}
                 >
                   <Play size={11} /> Pop
                 </button>
                 <button
-                  onClick={() => drop.mutate(s.index)}
+                  onClick={() => showConfirm({ title: "Drop Stash", message: `Drop stash@{${s.index}} — "${s.message}"? This permanently deletes the stash without applying the changes.`, danger: true, confirmLabel: "Drop", onConfirm: () => drop.mutate(s.index) })}
                   title="Drop — delete stash without applying"
                   style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 3, fontSize: 11, background: "rgba(244,67,54,0.15)", color: "var(--danger)" }}
                 >

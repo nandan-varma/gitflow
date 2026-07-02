@@ -12,12 +12,10 @@ export function AboutDialog() {
   }, []);
 
   return (
-    <div
-      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}
-      onClick={closeDialog}
-    >
+    <div className="dialog-overlay" onClick={closeDialog}>
       <div
-        style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 12, padding: 32, minWidth: 320, textAlign: "center", boxShadow: "0 8px 32px rgba(0,0,0,0.5)", position: "relative" }}
+        className="dialog-card"
+        style={{ borderRadius: 12, padding: 32, textAlign: "center", position: "relative" }}
         onClick={(e) => e.stopPropagation()}
       >
         <button onClick={closeDialog} style={{ position: "absolute", top: 12, right: 12, color: "var(--text-muted)", padding: 4 }}>
