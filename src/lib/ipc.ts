@@ -45,8 +45,14 @@ export const ipc = {
   stageFile: (path: string) =>
     invoke<void>("cmd_stage_file", { path }),
 
+  stageFiles: (paths: string[]) =>
+    invoke<void>("cmd_stage_files", { paths }),
+
   unstageFile: (path: string) =>
     invoke<void>("cmd_unstage_file", { path }),
+
+  unstageFiles: (paths: string[]) =>
+    invoke<void>("cmd_unstage_files", { paths }),
 
   stageHunk: (path: string, lines: DiffLine[]) =>
     invoke<void>("cmd_stage_hunk", { path, lines }),
@@ -70,8 +76,8 @@ export const ipc = {
   cherryPick: (oid: string) =>
     invoke<CherryPickOutcome>("cmd_cherry_pick", { oid }),
 
-  cherryPickContinue: (oid: string) =>
-    invoke<CherryPickOutcome>("cmd_cherry_pick_continue", { oid }),
+  cherryPickContinue: (oid?: string) =>
+    invoke<CherryPickOutcome>("cmd_cherry_pick_continue", { oid: oid ?? null }),
 
   cherryPickAbort: () =>
     invoke<void>("cmd_cherry_pick_abort"),

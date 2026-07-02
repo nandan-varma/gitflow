@@ -1,0 +1,34 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1b2036"/>
+      <stop offset="1" stop-color="#0c0e18"/>
+    </linearGradient>
+    <linearGradient id="ac" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#5eead4"/>
+      <stop offset="1" stop-color="#818cf8"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.58" cy="0.5" r="0.55">
+      <stop offset="0" stop-color="#818cf8" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#818cf8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="228" fill="url(#bg)"/>
+  <rect width="1024" height="1024" rx="228" fill="url(#glow)"/>
+
+  <!-- main trunk -->
+  <path d="M370 276 V748" stroke="#414a73" stroke-width="62" stroke-linecap="round"/>
+
+  <!-- feature branch: out and merge back -->
+  <path d="M370 328 C370 474 672 413 672 512 C672 611 370 550 370 696"
+        fill="none" stroke="url(#ac)" stroke-width="62" stroke-linecap="round"/>
+
+  <!-- commits -->
+  <circle cx="370" cy="262" r="82" fill="#414a73"/>
+  <circle cx="370" cy="262" r="40" fill="url(#bg)"/>
+  <circle cx="370" cy="762" r="82" fill="#414a73"/>
+  <circle cx="370" cy="762" r="40" fill="url(#bg)"/>
+  <circle cx="672" cy="512" r="92" fill="url(#ac)"/>
+  <circle cx="672" cy="512" r="42" fill="#0c0e18"/>
+</svg>

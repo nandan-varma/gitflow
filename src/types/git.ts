@@ -56,6 +56,7 @@ export interface ConflictDetail {
   theirs: string;
   base: string | null;
   conflicts: ConflictBlock[];
+  trailing_lines: string[];
 }
 
 export interface TagEntry {

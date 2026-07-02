@@ -112,8 +112,11 @@ function ConflictPane({
   // Tracks what each button last set so we can do a targeted replacement in the textarea
   const lastRes = React.useRef<string[]>(detail.conflicts.map(() => ""));
 
+  // Content after the last conflict block — must survive into the resolution
+  const tail = detail.trailing_lines.length ? "\n" + detail.trailing_lines.join("\n") : "";
+
   const [editableResult, setEditableResult] = useState(() =>
-    detail.conflicts.map((_, i) => blockText(i, "")).join("\n")
+    detail.conflicts.map((_, i) => blockText(i, "")).join("\n") + tail
   );
 
   const applyChoice = (i: number, newRes: string) => {
@@ -123,12 +126,12 @@ function ConflictPane({
     setEditableResult(prev => {
       if (!oldBlock) {
         // Empty section (no before_lines + empty old res): can't locate, full rebuild
-        return detail.conflicts.map((_, j) => blockText(j, lastRes.current[j])).join("\n");
+        return detail.conflicts.map((_, j) => blockText(j, lastRes.current[j])).join("\n") + tail;
       }
       const idx = prev.indexOf(oldBlock);
       if (idx < 0) {
         // User edited this section beyond recognition: rebuild from tracked choices
-        return detail.conflicts.map((_, j) => blockText(j, lastRes.current[j])).join("\n");
+        return detail.conflicts.map((_, j) => blockText(j, lastRes.current[j])).join("\n") + tail;
       }
       return prev.slice(0, idx) + newBlock + prev.slice(idx + oldBlock.length);
     });

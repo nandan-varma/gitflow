@@ -43,10 +43,12 @@ pub async fn cmd_git_push(
     state: State<'_, AppState>,
 ) -> Result<String, AppError> {
     let t = std::time::Instant::now();
+    // Always name the refspec — plain `git push` pushes the *current* branch,
+    // which is wrong when the UI targets another one.
     let r = if set_upstream {
         run_git(&["push", "--set-upstream", "origin", &branch], &state).await
     } else {
-        run_git(&["push"], &state).await
+        run_git(&["push", "origin", &branch], &state).await
     };
     state.log_command("cmd_git_push", t, &r);
     r

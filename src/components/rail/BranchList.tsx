@@ -98,11 +98,11 @@ function BranchItem({ branch, isRemote = false, pr }: { branch: BranchInfo; isRe
           items.push(
             { label: "Switch to Branch", action: () => switchBranch.mutate(branch.name) },
             { label: "Merge into Current", action: () => openDialog("merge", branch.name) },
-            { label: "Rebase onto Current", action: () => rebaseBranch.mutate(branch.name) },
+            { label: `Rebase Current onto ${branch.name}`, action: () => rebaseBranch.mutate(branch.name) },
             "separator",
-            { label: "Push", action: () => push.mutate({ branch: branch.name, setUpstream: branch.behind > 0 || branch.ahead > 0 }) },
+            { label: "Push", action: () => push.mutate({ branch: branch.name, setUpstream: !branch.upstream }) },
             "separator",
-            { label: "Delete Branch", danger: true, action: () => deleteBranch.mutate({ name: branch.name, force: false }) },
+            { label: "Delete Branch", danger: true, action: () => { if (window.confirm(`Delete branch "${branch.name}"?`)) deleteBranch.mutate({ name: branch.name, force: false }); } },
           );
         } else if (branch.is_head) {
           items.push(
@@ -159,7 +159,7 @@ function BranchItem({ branch, isRemote = false, pr }: { branch: BranchInfo; isRe
             <Merge size={11} />
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); deleteBranch.mutate({ name: branch.name, force: false }); }}
+            onClick={(e) => { e.stopPropagation(); if (window.confirm(`Delete branch "${branch.name}"?`)) deleteBranch.mutate({ name: branch.name, force: false }); }}
             title="Delete branch"
             style={{ color: "var(--text-muted)", padding: 2 }}
           >

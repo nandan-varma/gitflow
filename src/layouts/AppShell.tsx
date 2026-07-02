@@ -21,6 +21,7 @@ import { BlameView } from "../components/blame/BlameView";
 import { FileHistoryView } from "../components/graph/FileHistoryView";
 import { SettingsPage } from "../components/settings/SettingsPage";
 import { ContextMenu } from "../components/ContextMenu";
+import { AIChat } from "../components/ai/AIChat";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { useRepoChangeListener, useRepoInfo } from "../hooks/useRepository";
 import { useCommandLogStore } from "../store/commandLogStore";
@@ -294,6 +295,7 @@ export function AppShell() {
       {activeDialog === "stash-push" && <StashPushDialog />}
       {activeDialog === "about" && <AboutDialog />}
       <ContextMenu />
+      <AIChat />
     </div>
   );
 }

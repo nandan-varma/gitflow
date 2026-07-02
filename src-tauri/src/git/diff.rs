@@ -133,7 +133,13 @@ fn diff_to_file_diff(diff: &git2::Diff, requested_path: &str) -> Result<FileDiff
 
 pub fn get_diff_workdir(repo: &git2::Repository, path: &str) -> Result<FileDiff, AppError> {
     let mut opts = git2::DiffOptions::new();
-    opts.pathspec(path).context_lines(3).interhunk_lines(0);
+    opts.pathspec(path)
+        .context_lines(3)
+        .interhunk_lines(0)
+        // Untracked files must produce a full-content diff, not "No changes"
+        .include_untracked(true)
+        .show_untracked_content(true)
+        .recurse_untracked_dirs(true);
     let diff = repo.diff_index_to_workdir(None, Some(&mut opts))?;
     diff_to_file_diff(&diff, path)
 }
@@ -144,6 +150,27 @@ pub fn get_diff_staged(repo: &git2::Repository, path: &str) -> Result<FileDiff, 
     let head_tree = repo.head().ok().and_then(|h| h.peel_to_tree().ok());
     let diff = repo.diff_tree_to_index(head_tree.as_ref(), None, Some(&mut opts))?;
     diff_to_file_diff(&diff, path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn untracked_file_diff_has_hunks() {
+        let tmp = std::env::temp_dir().join(format!("test_diff_untracked_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let repo = git2::Repository::init(&tmp).unwrap();
+        std::fs::write(tmp.join("new.txt"), "one\ntwo\nthree\n").unwrap();
+
+        let diff = get_diff_workdir(&repo, "new.txt").unwrap();
+        assert_eq!(diff.hunks.len(), 1);
+        assert_eq!(diff.stats.additions, 3);
+
+        drop(repo);
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
 }
 
 pub fn get_diff_commit(repo: &git2::Repository, oid_str: &str, path: &str) -> Result<FileDiff, AppError> {

@@ -20,16 +20,16 @@ pub struct MergeResult {
 }
 
 pub fn list_branches(repo: &git2::Repository) -> Result<Vec<BranchInfo>, AppError> {
-    let head_oid = repo.head().ok().and_then(|h| h.target());
     let mut branches = Vec::new();
 
     for item in repo.branches(None)? {
         let (branch, branch_type) = item?;
         let name = branch.name()?.unwrap_or("").to_string();
         let is_remote = branch_type == git2::BranchType::Remote;
+        // Compare ref names, not OIDs — two branches at the same commit are not both HEAD
+        let is_head = !is_remote && branch.is_head();
         let reference = branch.get();
         let oid = reference.target().map(|o| o.to_string()).unwrap_or_default();
-        let is_head = head_oid.is_some_and(|h| Some(h) == reference.target());
 
         let upstream_name = branch
             .upstream()
@@ -81,7 +81,38 @@ pub fn create_branch(
     Ok(())
 }
 
+/// Check out a remote-tracking branch by creating (or reusing) a local branch
+/// that tracks it, then switching to that local branch. Plain `set_head` on a
+/// remote ref would leave HEAD in a state git never produces.
+pub fn checkout_remote_branch(repo: &git2::Repository, remote_name: &str) -> Result<(), AppError> {
+    let local_name = remote_name
+        .split_once('/')
+        .map(|(_, rest)| rest)
+        .ok_or_else(|| AppError::InvalidArgument(format!("Not a remote branch: {remote_name}")))?;
+
+    if repo.find_branch(local_name, git2::BranchType::Local).is_err() {
+        let remote = repo.find_branch(remote_name, git2::BranchType::Remote)?;
+        let target = remote.get().peel_to_commit()?;
+        let mut created = repo.branch(local_name, &target, false)?;
+        created.set_upstream(Some(remote_name))?;
+    }
+
+    let local = repo.find_branch(local_name, git2::BranchType::Local)?;
+    let refname = local
+        .get()
+        .name()
+        .ok_or_else(|| AppError::Git("Invalid branch ref name".into()))?
+        .to_string();
+    let object = local.get().peel(git2::ObjectType::Commit)?;
+    repo.checkout_tree(&object, None)?;
+    repo.set_head(&refname)?;
+    Ok(())
+}
+
 pub fn switch_branch(repo: &git2::Repository, name: &str) -> Result<(), AppError> {
+    if repo.find_branch(name, git2::BranchType::Remote).is_ok() {
+        return checkout_remote_branch(repo, name);
+    }
     let (object, reference) = repo.revparse_ext(name)?;
     repo.checkout_tree(&object, None)?;
     match reference {
@@ -213,4 +244,88 @@ fn process_rebase_ops(
     }
     rebase.finish(None)?;
     Ok(RebaseOutcome::Success)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    static COUNTER: AtomicU32 = AtomicU32::new(0);
+
+    fn init_repo() -> git2::Repository {
+        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let tmp = std::env::temp_dir().join(format!("test_branches_{}_{}", std::process::id(), n));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let repo = git2::Repository::init(&tmp).unwrap();
+        let mut cfg = repo.config().unwrap();
+        cfg.set_str("user.name", "Test").unwrap();
+        cfg.set_str("user.email", "test@example.com").unwrap();
+        repo
+    }
+
+    fn commit_file(repo: &git2::Repository, name: &str, content: &str) -> git2::Oid {
+        std::fs::write(repo.workdir().unwrap().join(name), content).unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new(name)).unwrap();
+        index.write().unwrap();
+        let tree_oid = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_oid).unwrap();
+        let sig = repo.signature().unwrap();
+        let parent = repo.head().ok().and_then(|h| h.peel_to_commit().ok());
+        let parents: Vec<&git2::Commit> = parent.iter().collect();
+        repo.commit(Some("HEAD"), &sig, &sig, "commit", &tree, &parents).unwrap()
+    }
+
+    fn cleanup(repo: git2::Repository) {
+        let path = repo.path().parent().unwrap().to_path_buf();
+        drop(repo);
+        let _ = std::fs::remove_dir_all(&path);
+    }
+
+    #[test]
+    fn is_head_only_for_checked_out_branch() {
+        let repo = init_repo();
+        let oid = commit_file(&repo, "a.txt", "a\n");
+        // second branch at the exact same commit
+        repo.branch("twin", &repo.find_commit(oid).unwrap(), false).unwrap();
+        let head_name = repo.head().unwrap().shorthand().unwrap().to_string();
+
+        let branches = list_branches(&repo).unwrap();
+        let heads: Vec<&BranchInfo> = branches.iter().filter(|b| b.is_head).collect();
+        assert_eq!(heads.len(), 1);
+        assert_eq!(heads[0].name, head_name);
+        cleanup(repo);
+    }
+
+    #[test]
+    fn checkout_remote_branch_creates_tracking_local() {
+        let repo = init_repo();
+        let oid = commit_file(&repo, "a.txt", "a\n");
+        repo.remote("origin", "https://example.invalid/repo.git").unwrap();
+        repo.reference("refs/remotes/origin/feat", oid, false, "test").unwrap();
+
+        switch_branch(&repo, "origin/feat").unwrap();
+
+        {
+            let head = repo.head().unwrap();
+            assert!(head.is_branch());
+            assert_eq!(head.name().unwrap(), "refs/heads/feat");
+            let local = repo.find_branch("feat", git2::BranchType::Local).unwrap();
+            let upstream = local.upstream().unwrap();
+            assert_eq!(upstream.name().unwrap().unwrap(), "origin/feat");
+        }
+        cleanup(repo);
+    }
+
+    #[test]
+    fn switch_branch_local_still_works() {
+        let repo = init_repo();
+        let oid = commit_file(&repo, "a.txt", "a\n");
+        repo.branch("other", &repo.find_commit(oid).unwrap(), false).unwrap();
+        switch_branch(&repo, "other").unwrap();
+        assert_eq!(repo.head().unwrap().name().unwrap(), "refs/heads/other");
+        cleanup(repo);
+    }
 }
