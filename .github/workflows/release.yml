@@ -83,6 +83,6 @@ jobs:
             - **Linux**: download `.AppImage` (portable) or `.deb` (Debian/Ubuntu)
 
             > macOS: if Gatekeeper blocks the app, right-click → Open.
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.target && format('--target {0}', matrix.target) || '' }}

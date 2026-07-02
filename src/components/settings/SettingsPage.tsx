@@ -190,8 +190,8 @@ export function SettingsPage() {
     } catch (e: unknown) {
       const msg = toErrMsg(e);
       // ponytail: pubkey not configured yet — guide the user instead of showing a raw error
-      if (msg.includes("pubkey") || msg.includes("key") || msg.includes("Not Found") || msg.includes("404")) {
-        setUpdateState({ status: "error", message: "Updater not configured. Run: pnpm tauri signer generate, then add the pubkey to tauri.conf.json." });
+      if (msg.includes("pubkey") || msg.includes("key") || msg.includes("Not Found") || msg.includes("404") || msg.includes("valid JSON") || msg.includes("fetch")) {
+        setUpdateState({ status: "error", message: "No update available (server returned an unexpected response). This is normal in development or when no release has been published." });
       } else {
         setUpdateState({ status: "error", message: msg });
       }
