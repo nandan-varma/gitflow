@@ -6,6 +6,12 @@ on:
       - 'v*'
   workflow_dispatch:
 
+# Retagging (delete + repush) cancels the superseded build instead of
+# running two full 4-platform matrices to completion.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   release:
     permissions:
@@ -15,18 +21,18 @@ jobs:
       matrix:
         include:
           - platform: macos-latest
-            args: --target aarch64-apple-darwin
+            target: aarch64-apple-darwin
           - platform: macos-latest
-            args: --target x86_64-apple-darwin
+            target: x86_64-apple-darwin
           - platform: ubuntu-22.04
-            args: ''
+            target: ''
           - platform: windows-latest
-            args: ''
+            target: ''
 
     runs-on: ${{ matrix.platform }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v6
         with:
@@ -40,24 +46,23 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
+          # the two macOS jobs otherwise share one auto key and evict each other
+          key: ${{ matrix.target }}
           cache-all-crates: true
           cache-workspace-crates: true
           cache-on-failure: true
 
       - name: Install Linux system deps
         if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf
+        uses: awalsh128/cache-apt-pkgs-action@v1.6.3
+        with:
+          packages: libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          version: 1
 
       - run: pnpm install --frozen-lockfile
 
@@ -80,4 +85,4 @@ jobs:
             > macOS: if Gatekeeper blocks the app, right-click → Open.
           releaseDraft: true
           prerelease: false
-          args: ${{ matrix.args }}
+          args: ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
