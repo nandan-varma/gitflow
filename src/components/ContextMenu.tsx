@@ -7,7 +7,23 @@ export function ContextMenu() {
 
   useEffect(() => {
     if (!contextMenu) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") hideContextMenu(); };
+    // Focus the first item so arrow keys / Enter work immediately
+    ref.current?.querySelector("button")?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        hideContextMenu();
+        return;
+      }
+      if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+      e.preventDefault();
+      const items = Array.from(ref.current?.querySelectorAll("button") ?? []);
+      if (!items.length) return;
+      const cur = items.indexOf(document.activeElement as HTMLButtonElement);
+      const next = e.key === "ArrowDown"
+        ? (cur + 1) % items.length
+        : (cur - 1 + items.length) % items.length;
+      items[next].focus();
+    };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [contextMenu, hideContextMenu]);
@@ -29,6 +45,7 @@ export function ContextMenu() {
       <div
         ref={ref}
         className="menu-enter"
+        role="menu"
         style={{
           position: "fixed",
           left: x,
@@ -45,11 +62,12 @@ export function ContextMenu() {
       >
         {contextMenu.items.map((item, i) =>
           item === "separator" ? (
-            <div key={i} style={{ height: 1, background: "var(--border)", margin: "3px 0" }} />
+            <div key={i} role="separator" style={{ height: 1, background: "var(--border)", margin: "3px 0" }} />
           ) : (
             <button
               key={i}
-              onMouseDown={(e) => {
+              role="menuitem"
+              onClick={(e) => {
                 e.stopPropagation();
                 hideContextMenu();
                 item.action();

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useCreateBranch, useSwitchBranch } from "../../hooks/useBranches";
 import { useUIStore } from "../../store/uiStore";
 import { toErrMsg } from "../../lib/ipc";
+import { DialogShell } from "../ui/DialogShell";
 
 export function BranchCreateDialog() {
   const [name, setName] = useState("");
@@ -26,8 +27,7 @@ export function BranchCreateDialog() {
   };
 
   return (
-    <div className="dialog-overlay" onClick={closeDialog}>
-      <div className="dialog-card" style={{ minWidth: 340 }} onClick={(e) => e.stopPropagation()}>
+    <DialogShell label="Create branch" onClose={closeDialog} style={{ minWidth: 340 }}>
         <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 14 }}>
           Create Branch{fromOid && <span style={{ fontSize: 11, fontWeight: 400, color: "var(--text-muted)", marginLeft: 8 }}>from {fromOid.slice(0, 7)}</span>}
         </div>
@@ -64,7 +64,6 @@ export function BranchCreateDialog() {
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </DialogShell>
   );
 }

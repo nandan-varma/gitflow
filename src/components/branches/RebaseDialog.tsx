@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useRebaseBranch } from "../../hooks/useBranches";
 import { useUIStore } from "../../store/uiStore";
 import { toErrMsg } from "../../lib/ipc";
+import { DialogShell } from "../ui/DialogShell";
 
 export function RebaseDialog() {
   const { closeDialog, dialogPayload } = useUIStore();
@@ -20,8 +21,7 @@ export function RebaseDialog() {
   };
 
   return (
-    <div className="dialog-overlay" onClick={closeDialog}>
-      <div className="dialog-card" style={{ minWidth: 340 }} onClick={(e) => e.stopPropagation()}>
+    <DialogShell label="Rebase branch" onClose={closeDialog} style={{ minWidth: 340 }}>
         <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 14 }}>Rebase Branch</div>
         <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 14 }}>
           Rebase current branch onto{" "}
@@ -50,7 +50,6 @@ export function RebaseDialog() {
             {rebase.isPending ? "Rebasing…" : "Rebase"}
           </button>
         </div>
-      </div>
-    </div>
+    </DialogShell>
   );
 }

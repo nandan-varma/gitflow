@@ -4,8 +4,10 @@ import type { FileStatus } from "../../types/git";
 import { ipc, toErrMsg } from "../../lib/ipc";
 import { queryClient } from "../../lib/queryClient";
 import { useUIStore } from "../../store/uiStore";
+import { useSettingsStore } from "../../store/settingsStore";
 import { useToastStore } from "../../store/toastStore";
 import { useConfirmStore } from "../../store/confirmStore";
+import { rowProps } from "../../lib/a11y";
 import type { MenuItem } from "../../types/contextMenu";
 
 const STATUS_ORDER: Record<string, number> = { conflict: 0, modified: 1, deleted: 2, added: 3, renamed: 4 };
@@ -29,6 +31,7 @@ interface Props {
 
 export function FileStatusList({ files, staged, onStageAll, onUnstageAll }: Props) {
   const { selectedFilePath, selectFile, showContextMenu, openBlame, openFileHistory } = useUIStore();
+  const { codeEditor, terminalApp } = useSettingsStore();
   const addToast = useToastStore((s) => s.addToast);
   const showConfirm = useConfirmStore((s) => s.showConfirm);
 
@@ -125,6 +128,9 @@ export function FileStatusList({ files, staged, onStageAll, onUnstageAll }: Prop
                 <div
                   key={file.path}
                   className="list-item"
+                  {...rowProps(() => selectFile(file.path, staged ? "staged" : "workdir"))}
+                  aria-label={`${file.status} file ${file.path}`}
+                  aria-current={selectedFilePath === file.path || undefined}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -150,9 +156,9 @@ export function FileStatusList({ files, staged, onStageAll, onUnstageAll }: Prop
                       { label: "Blame", action: () => openBlame(file.path) },
                       { label: "File History", action: () => openFileHistory(file.path) },
                       "separator",
-                      { label: "Open in VS Code", action: () => { ipc.openInVscode(file.path).catch(() => {}); } },
+                      { label: "Open in Editor", action: () => { ipc.openInVscode(file.path, codeEditor).catch(() => {}); } },
                       { label: "Reveal in Finder", action: () => { ipc.revealInFinder(file.path).catch(() => {}); } },
-                      { label: "Open Terminal Here", action: () => { ipc.openInTerminal(file.path).catch(() => {}); } },
+                      { label: "Open Terminal Here", action: () => { ipc.openInTerminal(file.path, terminalApp).catch(() => {}); } },
                       "separator",
                       { label: "Copy Path", action: () => { navigator.clipboard.writeText(file.path).catch(() => {}); } },
                     );
@@ -170,6 +176,7 @@ export function FileStatusList({ files, staged, onStageAll, onUnstageAll }: Prop
                   </span>
                   <button
                     onClick={(e) => { e.stopPropagation(); handleFileAction(file); }}
+                    aria-label={staged ? `Unstage ${basename(file.path)}` : `Stage ${basename(file.path)}`}
                     style={{
                       fontSize: 11,
                       padding: "1px 6px",

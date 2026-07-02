@@ -5,6 +5,7 @@ import { usePullRequests } from "../../hooks/useGitHub";
 import { usePush } from "../../hooks/useRemote";
 import { useUIStore } from "../../store/uiStore";
 import { useConfirmStore } from "../../store/confirmStore";
+import { rowProps } from "../../lib/a11y";
 import type { BranchInfo } from "../../types/git";
 import type { PullRequest } from "../../types/github";
 import type { MenuItem } from "../../types/contextMenu";
@@ -21,36 +22,38 @@ export function BranchList() {
 
   return (
     <section>
-      <button
-        onClick={() => setCollapsed((v) => !v)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          width: "100%",
-          padding: "6px 12px",
-          color: "var(--text-muted)",
-          fontSize: 11,
-          fontWeight: 600,
-          letterSpacing: "0.05em",
-          textTransform: "uppercase",
-        }}
-      >
-        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+      <div style={{ display: "flex", alignItems: "center", paddingRight: 12 }}>
+        <button
+          onClick={() => setCollapsed((v) => !v)}
+          aria-expanded={!collapsed}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            flex: 1,
+            padding: "6px 12px",
+            color: "var(--text-muted)",
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: "0.05em",
+            textTransform: "uppercase",
+          }}
+        >
           {collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
           Branches
           <span style={{ fontSize: 10, background: "var(--bg-elevated)", padding: "0 4px", borderRadius: 8, color: "var(--text-muted)" }}>
             {local.length}
           </span>
-        </span>
+        </button>
         <button
-          onClick={(e) => { e.stopPropagation(); openDialog("branch-create"); }}
+          onClick={() => openDialog("branch-create")}
           style={{ color: "var(--text-muted)", padding: 2 }}
           title="Create branch"
+          aria-label="Create branch"
         >
           <Plus size={12} />
         </button>
-      </button>
+      </div>
 
       {!collapsed && (
         <div>
@@ -83,8 +86,12 @@ function BranchItem({ branch, isRemote = false, pr }: { branch: BranchInfo; isRe
   return (
     <div
       className="list-item"
+      {...rowProps(() => { if (!branch.is_head && !isRemote) switchBranch.mutate(branch.name); })}
+      aria-label={`Branch ${branch.name}`}
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
+      onFocus={() => setHovering(true)}
+      onBlur={() => setHovering(false)}
       style={{
         display: "flex",
         alignItems: "center",
@@ -157,6 +164,7 @@ function BranchItem({ branch, isRemote = false, pr }: { branch: BranchInfo; isRe
           <button
             onClick={(e) => { e.stopPropagation(); openDialog("merge", branch.name); }}
             title="Merge into current"
+            aria-label={`Merge ${branch.name} into current branch`}
             style={{ color: "var(--text-muted)", padding: 2 }}
           >
             <Merge size={11} />
@@ -164,6 +172,7 @@ function BranchItem({ branch, isRemote = false, pr }: { branch: BranchInfo; isRe
           <button
             onClick={(e) => { e.stopPropagation(); showConfirm({ title: "Delete Branch", message: `Delete branch "${branch.name}"? This cannot be undone.`, danger: true, confirmLabel: "Delete", onConfirm: () => deleteBranch.mutate({ name: branch.name, force: false }) }); }}
             title="Delete branch"
+            aria-label={`Delete branch ${branch.name}`}
             style={{ color: "var(--text-muted)", padding: 2 }}
           >
             <Trash2 size={11} />

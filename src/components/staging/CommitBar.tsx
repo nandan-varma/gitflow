@@ -29,7 +29,7 @@ export function CommitBar() {
       }}
     >
       {conflicts > 0 && (
-        <span
+        <button
           style={{
             fontSize: 11,
             padding: "2px 8px",
@@ -41,7 +41,7 @@ export function CommitBar() {
           onClick={() => setActiveView("conflicts")}
         >
           ⚠ {conflicts} conflict{conflicts !== 1 ? "s" : ""}
-        </span>
+        </button>
       )}
 
       <button

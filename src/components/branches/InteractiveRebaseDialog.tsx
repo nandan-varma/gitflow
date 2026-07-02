@@ -6,6 +6,7 @@ import { ipc, toErrMsg } from "../../lib/ipc";
 import { queryClient } from "../../lib/queryClient";
 import { formatRelativeTime } from "../../lib/diffParser";
 import { GripVertical, Info } from "lucide-react";
+import { DialogShell } from "../ui/DialogShell";
 import type { GraphNode } from "../../types/graph";
 
 type Action = "pick" | "fixup" | "drop";
@@ -112,8 +113,7 @@ export function InteractiveRebaseDialog() {
   const hasMerge = steps.some((s) => byOid.get(s.oid)?.is_merge);
 
   return (
-    <div className="dialog-overlay" onClick={closeDialog}>
-      <div className="dialog-card" style={{ width: 540, maxHeight: "80vh", display: "flex", flexDirection: "column" }} onClick={(e) => e.stopPropagation()}>
+    <DialogShell label="Interactive rebase" onClose={closeDialog} style={{ width: 540, maxHeight: "80vh", display: "flex", flexDirection: "column" }}>
         <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Interactive Rebase</div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
@@ -181,7 +181,6 @@ export function InteractiveRebaseDialog() {
             {pending ? "Rebasing…" : "Start Rebase"}
           </button>
         </div>
-      </div>
-    </div>
+    </DialogShell>
   );
 }

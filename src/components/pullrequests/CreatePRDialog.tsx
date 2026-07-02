@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { X } from "lucide-react";
 import { useCreatePR } from "../../hooks/useGitHub";
 import { useBranches } from "../../hooks/useBranches";
+import { DialogShell } from "../ui/DialogShell";
 
 export function CreatePRDialog({ onClose }: { onClose: () => void }) {
   const { data: branches = [] } = useBranches();
@@ -21,11 +22,10 @@ export function CreatePRDialog({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="dialog-overlay">
-      <div className="dialog-card" style={{ width: 480, display: "flex", flexDirection: "column", gap: 14 }}>
+    <DialogShell label="New pull request" onClose={onClose} style={{ width: 480, display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={{ display: "flex", alignItems: "center" }}>
           <h3 style={{ flex: 1, fontSize: 13, fontWeight: 600, margin: 0 }}>New Pull Request</h3>
-          <button onClick={onClose} style={{ color: "var(--text-muted)", padding: 2 }}><X size={14} /></button>
+          <button onClick={onClose} aria-label="Close" style={{ color: "var(--text-muted)", padding: 2 }}><X size={14} /></button>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -96,7 +96,6 @@ export function CreatePRDialog({ onClose }: { onClose: () => void }) {
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </DialogShell>
   );
 }

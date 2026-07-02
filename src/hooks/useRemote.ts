@@ -2,7 +2,7 @@ import { useMutation } from "@tanstack/react-query";
 import { ipc } from "../lib/ipc";
 import { queryClient } from "../lib/queryClient";
 
-function invalidateAfterRemote() {
+export function invalidateAfterRemote() {
   queryClient.invalidateQueries({ queryKey: ["branches"] });
   queryClient.invalidateQueries({ queryKey: ["repo"] });
   queryClient.invalidateQueries({ queryKey: ["graph"] });

@@ -52,11 +52,11 @@ export function DiffView({ diff, path, mode }: Props) {
               letterSpacing: "0.06em",
               padding: "1px 5px",
               borderRadius: 3,
-              background: mode === "staged" ? "rgba(255,193,7,0.15)" : "rgba(76,175,80,0.15)",
-              color: mode === "staged" ? "var(--warning)" : "var(--success)",
+              background: mode === "staged" ? "rgba(255,193,7,0.15)" : mode === "commit" ? "rgba(76,139,245,0.15)" : "rgba(76,175,80,0.15)",
+              color: mode === "staged" ? "var(--warning)" : mode === "commit" ? "var(--accent)" : "var(--success)",
             }}
           >
-            {mode === "staged" ? "Staged" : "Unstaged"}
+            {mode === "staged" ? "Staged" : mode === "commit" ? "Commit" : "Unstaged"}
           </span>
           <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>
             {diff.old_path ? `${diff.old_path} → ${diff.path}` : diff.path}

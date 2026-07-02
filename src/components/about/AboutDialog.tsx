@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { useUIStore } from "../../store/uiStore";
+import { DialogShell } from "../ui/DialogShell";
 import { GitBranch, X } from "lucide-react";
 
 export function AboutDialog() {
@@ -12,13 +13,8 @@ export function AboutDialog() {
   }, []);
 
   return (
-    <div className="dialog-overlay" onClick={closeDialog}>
-      <div
-        className="dialog-card"
-        style={{ borderRadius: 12, padding: 32, textAlign: "center", position: "relative" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button onClick={closeDialog} style={{ position: "absolute", top: 12, right: 12, color: "var(--text-muted)", padding: 4 }}>
+    <DialogShell label="About GitFlow Studio" onClose={closeDialog} style={{ borderRadius: 12, padding: 32, textAlign: "center", position: "relative" }}>
+        <button onClick={closeDialog} aria-label="Close" style={{ position: "absolute", top: 12, right: 12, color: "var(--text-muted)", padding: 4 }}>
           <X size={14} />
         </button>
 
@@ -45,7 +41,6 @@ export function AboutDialog() {
         <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid var(--border)", fontSize: 11, color: "var(--text-muted)" }}>
           © {new Date().getFullYear()} nandan-varma · MIT License
         </div>
-      </div>
-    </div>
+    </DialogShell>
   );
 }

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useUIStore } from "../../store/uiStore";
 import { ipc, toErrMsg } from "../../lib/ipc";
 import { queryClient } from "../../lib/queryClient";
+import { DialogShell } from "../ui/DialogShell";
 
 export function CreateTagDialog() {
   const { closeDialog, dialogPayload } = useUIStore();
@@ -29,8 +30,7 @@ export function CreateTagDialog() {
   };
 
   return (
-    <div className="dialog-overlay" onClick={closeDialog}>
-      <div className="dialog-card" style={{ minWidth: 340 }} onClick={(e) => e.stopPropagation()}>
+    <DialogShell label="Create tag" onClose={closeDialog} style={{ minWidth: 340 }}>
         <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 14 }}>
           Create Tag
           <span style={{ fontSize: 11, fontWeight: 400, color: "var(--text-muted)", marginLeft: 8 }}>at {oid.slice(0, 7)}</span>
@@ -69,7 +69,6 @@ export function CreateTagDialog() {
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </DialogShell>
   );
 }

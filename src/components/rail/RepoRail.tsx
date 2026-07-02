@@ -10,9 +10,9 @@ import { TagList } from "./TagList";
 function TrafficLights() {
   return (
     <div className="traffic-lights">
-      <button className="traffic-light close" title="Close" onClick={() => getCurrentWindow().close()} />
-      <button className="traffic-light min"   title="Minimize" onClick={() => getCurrentWindow().minimize()} />
-      <button className="traffic-light max"   title="Maximize" onClick={() => getCurrentWindow().toggleMaximize()} />
+      <button className="traffic-light close" title="Close" aria-label="Close window" onClick={() => getCurrentWindow().close()} />
+      <button className="traffic-light min"   title="Minimize" aria-label="Minimize window" onClick={() => getCurrentWindow().minimize()} />
+      <button className="traffic-light max"   title="Maximize" aria-label="Maximize window" onClick={() => getCurrentWindow().toggleMaximize()} />
     </div>
   );
 }
@@ -24,7 +24,7 @@ export function RepoRail() {
   if (railCollapsed) {
     return (
       <aside style={{ background: "var(--bg-surface)", display: "flex", flexDirection: "column", alignItems: "center", height: "100%" }}>
-        <div data-tauri-drag-region className="panel-header" style={{ width: "100%", justifyContent: "center", paddingLeft: 0, paddingRight: 0 }}>
+        <div data-tauri-drag-region className="panel-header" style={{ width: "100%", paddingLeft: 8, paddingRight: 0 }}>
           <TrafficLights />
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "8px 0", gap: 4 }}>
@@ -111,6 +111,7 @@ function NavIcon({
     <button
       onClick={onClick}
       title={title}
+      aria-label={title}
       style={{
         width: 36,
         height: 36,

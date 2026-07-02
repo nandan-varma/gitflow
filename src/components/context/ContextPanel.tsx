@@ -18,7 +18,7 @@ export function ContextPanel() {
           <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500, letterSpacing: "0.06em" }}>DETAILS</span>
         )}
       </div>
-      <div style={{ flex: 1, overflowY: "auto" }}>
+      <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
         {selectedCommitOid ? (
           <CommitDetail />
         ) : (

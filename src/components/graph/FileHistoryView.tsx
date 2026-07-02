@@ -6,6 +6,7 @@ import { Skeleton } from "../ui/Skeleton";
 import { DiffView } from "../diff/DiffView";
 import { formatRelativeTime } from "../../lib/diffParser";
 import { ArrowLeft, GitCommit } from "lucide-react";
+import { rowProps } from "../../lib/a11y";
 
 export function FileHistoryView() {
   const { fileHistoryPath, setActiveView } = useUIStore();
@@ -16,7 +17,7 @@ export function FileHistoryView() {
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderBottom: "1px solid var(--border)", flexShrink: 0, background: "var(--bg-surface)" }}>
-        <button onClick={() => setActiveView("graph")} style={{ color: "var(--text-muted)", padding: 2 }}>
+        <button onClick={() => setActiveView("graph")} aria-label="Back to graph" style={{ color: "var(--text-muted)", padding: 2 }}>
           <ArrowLeft size={14} />
         </button>
         <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>
@@ -43,6 +44,9 @@ export function FileHistoryView() {
             <div
               key={e.oid}
               onClick={() => setSelectedOid(e.oid === selectedOid ? null : e.oid)}
+              {...rowProps(() => setSelectedOid(e.oid === selectedOid ? null : e.oid))}
+              aria-label={`Commit ${e.oid.slice(0, 7)}: ${e.summary}`}
+              aria-current={selectedOid === e.oid || undefined}
               style={{
                 padding: "8px 12px",
                 cursor: "pointer",

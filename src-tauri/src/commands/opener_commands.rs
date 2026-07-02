@@ -60,16 +60,17 @@ mod tests {
 }
 
 #[tauri::command]
-pub async fn cmd_open_in_vscode(user_path: String, state: State<'_, AppState>) -> Result<(), AppError> {
+pub async fn cmd_open_in_vscode(path: String, editor_cmd: String, state: State<'_, AppState>) -> Result<(), AppError> {
     let t = std::time::Instant::now();
     let base = repo_path(&state)?;
-    let full = resolve_path(&base, &user_path)?;
+    let full = resolve_path(&base, &path)?;
+    let cmd = if editor_cmd.is_empty() { "code".to_string() } else { editor_cmd };
     let r: Result<(), AppError> = async {
-        let out = tokio::process::Command::new("code")
+        let out = tokio::process::Command::new(&cmd)
             .arg(&full)
             .output()
             .await
-            .map_err(|e| AppError::Other(format!("VS Code CLI not found: {e}")))?;
+            .map_err(|e| AppError::Other(format!("Editor '{cmd}' not found: {e}")))?;
         if out.status.success() { Ok(()) }
         else { Err(AppError::Other(truncate_stderr(&String::from_utf8_lossy(&out.stderr)))) }
     }.await;
@@ -108,10 +109,10 @@ fn reveal_in_finder(full: &std::path::Path) -> std::process::Output {
 }
 
 #[tauri::command]
-pub async fn cmd_reveal_in_finder(user_path: String, state: State<'_, AppState>) -> Result<(), AppError> {
+pub async fn cmd_reveal_in_finder(path: String, state: State<'_, AppState>) -> Result<(), AppError> {
     let t = std::time::Instant::now();
     let base = repo_path(&state)?;
-    let full = resolve_path(&base, &user_path)?;
+    let full = resolve_path(&base, &path)?;
     let r: Result<(), AppError> = async {
         let full_clone = full.clone();
         let out = tokio::task::spawn_blocking(move || reveal_in_finder(&full_clone))
@@ -125,15 +126,16 @@ pub async fn cmd_reveal_in_finder(user_path: String, state: State<'_, AppState>)
 }
 
 #[cfg(target_os = "macos")]
-fn open_terminal(dir: &std::path::Path) -> std::process::Output {
+fn open_terminal(dir: &std::path::Path, terminal_app: &str) -> std::process::Output {
+    let app = if terminal_app.is_empty() { "Terminal" } else { terminal_app };
     std::process::Command::new("open")
-        .args(["-a", "Terminal", dir.to_str().unwrap_or("")])
+        .args(["-a", app, dir.to_str().unwrap_or("")])
         .output()
         .expect("open failed")
 }
 
 #[cfg(target_os = "linux")]
-fn open_terminal(dir: &std::path::Path) -> std::process::Output {
+fn open_terminal(dir: &std::path::Path, _terminal_app: &str) -> std::process::Output {
     // Try common terminal emulators
     for term in &["x-terminal-emulator", "gnome-terminal", "konsole", "xfce4-terminal", "xterm"] {
         if let Ok(out) = std::process::Command::new(term)
@@ -153,7 +155,7 @@ fn open_terminal(dir: &std::path::Path) -> std::process::Output {
 }
 
 #[cfg(target_os = "windows")]
-fn open_terminal(dir: &std::path::Path) -> std::process::Output {
+fn open_terminal(dir: &std::path::Path, _terminal_app: &str) -> std::process::Output {
     std::process::Command::new("cmd")
         .args(["/C", "start", "cmd", "/K", &format!("cd /d {}", dir.to_str().unwrap_or(""))])
         .output()
@@ -161,10 +163,10 @@ fn open_terminal(dir: &std::path::Path) -> std::process::Output {
 }
 
 #[tauri::command]
-pub async fn cmd_open_in_terminal(user_path: String, state: State<'_, AppState>) -> Result<(), AppError> {
+pub async fn cmd_open_in_terminal(path: String, terminal_app: String, state: State<'_, AppState>) -> Result<(), AppError> {
     let t = std::time::Instant::now();
     let base = repo_path(&state)?;
-    let resolved = resolve_path(&base, &user_path)?;
+    let resolved = resolve_path(&base, &path)?;
     let dir = if resolved.is_dir() {
         resolved
     } else {
@@ -172,7 +174,7 @@ pub async fn cmd_open_in_terminal(user_path: String, state: State<'_, AppState>)
     };
     let r: Result<(), AppError> = async {
         let dir_clone = dir.clone();
-        let out = tokio::task::spawn_blocking(move || open_terminal(&dir_clone))
+        let out = tokio::task::spawn_blocking(move || open_terminal(&dir_clone, &terminal_app))
             .await
             .map_err(|e| AppError::Other(format!("Task failed: {e}")))?;
         if out.status.success() { Ok(()) }

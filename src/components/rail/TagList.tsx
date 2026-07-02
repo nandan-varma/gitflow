@@ -5,11 +5,12 @@ import { ipc } from "../../lib/ipc";
 import { queryKeys } from "../../lib/queryClient";
 import { useRepoStore } from "../../store/repoStore";
 import { useUIStore } from "../../store/uiStore";
+import { rowProps } from "../../lib/a11y";
 
 export function TagList() {
   const [collapsed, setCollapsed] = useState(true);
   const currentRepoPath = useRepoStore((s) => s.currentRepoPath);
-  const { openDialog } = useUIStore();
+  const { openDialog, showContextMenu } = useUIStore();
 
   const { data: tags = [] } = useQuery({
     queryKey: queryKeys.tags,
@@ -19,37 +20,40 @@ export function TagList() {
 
   return (
     <section>
-      <button
-        onClick={() => setCollapsed((v) => !v)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
-          width: "100%",
-          padding: "6px 12px",
-          color: "var(--text-muted)",
-          fontSize: 11,
-          fontWeight: 600,
-          letterSpacing: "0.05em",
-          textTransform: "uppercase",
-        }}
-      >
-        {collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
-        Tags
-        {tags.length > 0 && (
-          <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
-            {tags.length}
-          </span>
-        )}
-        <span style={{ marginLeft: "auto" }} />
+      <div style={{ display: "flex", alignItems: "center", paddingRight: 12 }}>
         <button
-          onClick={(e) => { e.stopPropagation(); openDialog("tag-create", "HEAD"); }}
+          onClick={() => setCollapsed((v) => !v)}
+          aria-expanded={!collapsed}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            flex: 1,
+            padding: "6px 12px",
+            color: "var(--text-muted)",
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: "0.05em",
+            textTransform: "uppercase",
+          }}
+        >
+          {collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+          Tags
+          {tags.length > 0 && (
+            <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
+              {tags.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => openDialog("tag-create", "HEAD")}
           title="Create tag"
+          aria-label="Create tag"
           style={{ color: "var(--text-muted)", padding: 2 }}
         >
           <Plus size={12} />
         </button>
-      </button>
+      </div>
       {!collapsed && (
         <div style={{ padding: "2px 0" }}>
           {tags.length === 0 ? (
@@ -61,6 +65,8 @@ export function TagList() {
               <div
                 key={tag.name}
                 className="list-item"
+                {...rowProps(() => {})}
+                aria-label={`Tag ${tag.name}`}
                 title={tag.message ?? undefined}
                 style={{
                   display: "flex",
@@ -70,6 +76,16 @@ export function TagList() {
                   fontSize: 12,
                   color: "var(--text-secondary)",
                   cursor: "default",
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  showContextMenu(e.clientX, e.clientY, [
+                    { label: "Create Branch from Tag…", action: () => openDialog("branch-create", tag.target_oid) },
+                    { label: "Cherry-pick onto Current Branch", action: async () => { try { await ipc.cherryPick(tag.target_oid); } catch {} } },
+                    "separator",
+                    { label: "Copy Tag Name", action: () => { navigator.clipboard.writeText(tag.name).catch(() => {}); } },
+                    { label: "Copy Commit SHA", action: () => { navigator.clipboard.writeText(tag.target_oid).catch(() => {}); } },
+                  ]);
                 }}
               >
                 <Tag size={11} style={{ flexShrink: 0, color: "var(--text-muted)" }} />

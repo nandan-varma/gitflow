@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useMergeBranch } from "../../hooks/useBranches";
 import { useUIStore } from "../../store/uiStore";
 import { toErrMsg } from "../../lib/ipc";
+import { DialogShell } from "../ui/DialogShell";
 
 export function MergeDialog() {
   const { closeDialog, dialogPayload, setActiveView } = useUIStore();
@@ -23,8 +24,7 @@ export function MergeDialog() {
   };
 
   return (
-    <div className="dialog-overlay" onClick={closeDialog}>
-      <div className="dialog-card" style={{ minWidth: 340 }} onClick={(e) => e.stopPropagation()}>
+    <DialogShell label="Merge branch" onClose={closeDialog} style={{ minWidth: 340 }}>
         <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 14 }}>Merge Branch</div>
         <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 14 }}>
           Merge <code style={{ fontFamily: "var(--font-mono)", color: "var(--accent)" }}>{branchName}</code> into current branch?
@@ -45,7 +45,6 @@ export function MergeDialog() {
             Merge
           </button>
         </div>
-      </div>
-    </div>
+    </DialogShell>
   );
 }

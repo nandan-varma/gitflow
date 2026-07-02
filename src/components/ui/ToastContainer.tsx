@@ -15,13 +15,14 @@ export function ToastContainer() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="toast-container">
+    <div className="toast-container" aria-live="polite" role="status">
       {toasts.map((t) => (
         <div key={t.id} className={`toast ${t.type}${t.exiting ? " exiting" : ""}`}>
           {ICONS[t.type]}
           <span style={{ flex: 1 }}>{t.message}</span>
           <button
             onClick={() => dismissToast(t.id)}
+            aria-label="Dismiss notification"
             style={{ color: "inherit", opacity: 0.6, padding: 2, flexShrink: 0 }}
           >
             <X size={12} />

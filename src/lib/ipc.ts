@@ -187,13 +187,13 @@ export const ipc = {
   ghIssueCreateWeb: () =>
     invoke<void>("cmd_gh_issue_create_web"),
 
-  // Opener (macOS external tools)
-  openInVscode: (path: string) =>
-    invoke<void>("cmd_open_in_vscode", { path }),
+  // Opener (external tools)
+  openInVscode: (path: string, editorCmd: string) =>
+    invoke<void>("cmd_open_in_vscode", { path, editorCmd }),
 
   revealInFinder: (path: string) =>
     invoke<void>("cmd_reveal_in_finder", { path }),
 
-  openInTerminal: (path: string) =>
-    invoke<void>("cmd_open_in_terminal", { path }),
+  openInTerminal: (path: string, terminalApp: string) =>
+    invoke<void>("cmd_open_in_terminal", { path, terminalApp }),
 };

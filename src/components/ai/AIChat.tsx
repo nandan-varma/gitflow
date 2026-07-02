@@ -262,6 +262,7 @@ export function AIChat() {
             )}
             <button
               title="New conversation"
+              aria-label="New conversation"
               onClick={newChat}
               style={{ color: "var(--text-muted)", padding: 4, borderRadius: 4 }}
             >
@@ -269,6 +270,7 @@ export function AIChat() {
             </button>
             <button
               title="Close"
+              aria-label="Close assistant"
               onClick={() => setOpen(false)}
               style={{ color: "var(--text-muted)", padding: 4, borderRadius: 4 }}
             >
@@ -521,6 +523,7 @@ export function AIChat() {
             {busy ? (
               <button
                 title="Stop"
+                aria-label="Stop generating"
                 onClick={stop}
                 style={{
                   padding: "0 12px",
@@ -535,6 +538,7 @@ export function AIChat() {
             ) : (
               <button
                 title="Send"
+                aria-label="Send message"
                 onClick={() => send()}
                 disabled={!configured || !input.trim()}
                 style={{
@@ -557,6 +561,8 @@ export function AIChat() {
       {/* Floating toggle button */}
       <button
         title="AI Assistant"
+        aria-label="Toggle AI assistant"
+        aria-expanded={open}
         onClick={() => setOpen(!open)}
         style={{
           position: "fixed",

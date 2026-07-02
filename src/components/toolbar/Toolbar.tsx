@@ -1,5 +1,6 @@
 import React from "react";
-import { ChevronLeft, ChevronRight, GitBranch, RefreshCw, Settings, Terminal, ArrowUp, ArrowDown, Download } from "lucide-react";
+import { ChevronLeft, ChevronRight, FolderOpen, GitBranch, RefreshCw, Settings, Terminal, ArrowUp, ArrowDown, Download } from "lucide-react";
+import { open } from "@tauri-apps/plugin-dialog";
 import { useRepoStore } from "../../store/repoStore";
 import { useRepoInfo } from "../../hooks/useRepository";
 import { useUIStore } from "../../store/uiStore";
@@ -8,7 +9,12 @@ import { useFetch, usePush, usePull } from "../../hooks/useRemote";
 import { useToastStore } from "../../store/toastStore";
 
 export function Toolbar() {
-  const { currentRepoPath } = useRepoStore();
+  const { currentRepoPath, openRepository } = useRepoStore();
+
+  const handleOpenRepo = async () => {
+    const selected = await open({ directory: true, multiple: false });
+    if (selected && typeof selected === "string") openRepository(selected);
+  };
   const { data: repoInfo, refetch } = useRepoInfo();
   const { toggleCommandLog, toggleRail, railCollapsed, activeView, setActiveView } = useUIStore();
 
@@ -47,6 +53,8 @@ export function Toolbar() {
       <button
         onClick={toggleRail}
         title={railCollapsed ? "Expand rail" : "Collapse rail"}
+        aria-label={railCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        aria-expanded={!railCollapsed}
         style={{ color: "var(--text-muted)", padding: "4px" }}
       >
         {railCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
@@ -78,8 +86,12 @@ export function Toolbar() {
         )}
       </div>
 
+      <button onClick={handleOpenRepo} title="Open repository" aria-label="Open repository" style={{ color: "var(--text-muted)", padding: "4px" }}>
+        <FolderOpen size={14} />
+      </button>
+
       {currentRepoPath && (
-        <button onClick={() => refetch()} title="Refresh" style={{ color: "var(--text-muted)", padding: "4px" }}>
+        <button onClick={() => refetch()} title="Refresh" aria-label="Refresh" style={{ color: "var(--text-muted)", padding: "4px" }}>
           <RefreshCw size={14} />
         </button>
       )}
@@ -90,6 +102,7 @@ export function Toolbar() {
             onClick={() => fetch.mutate()}
             disabled={fetch.isPending}
             title="Fetch from remote"
+            aria-label="Fetch from remote"
             style={{ color: "var(--text-muted)", padding: "4px", display: "flex", alignItems: "center", gap: 3, fontSize: 11 }}
           >
             <Download size={13} />
@@ -100,6 +113,7 @@ export function Toolbar() {
             onClick={() => push.mutate({ branch: currentBranch.name, setUpstream: !hasUpstream })}
             disabled={push.isPending || ahead === 0}
             title={hasUpstream ? "Push" : "Push and set upstream"}
+            aria-label={hasUpstream ? "Push" : "Push and set upstream"}
             style={{ color: ahead > 0 ? "var(--accent)" : "var(--text-muted)", padding: "4px", display: "flex", alignItems: "center", gap: 3, fontSize: 11, opacity: ahead === 0 ? 0.5 : 1 }}
           >
             <ArrowUp size={13} />
@@ -111,6 +125,7 @@ export function Toolbar() {
               onClick={() => pull.mutate()}
               disabled={pull.isPending}
               title="Pull (rebase)"
+              aria-label="Pull with rebase"
               style={{ color: "var(--warning)", padding: "4px", display: "flex", alignItems: "center", gap: 3, fontSize: 11 }}
             >
               <ArrowDown size={13} />
@@ -123,6 +138,7 @@ export function Toolbar() {
       <button
         onClick={toggleCommandLog}
         title="Toggle command log"
+        aria-label="Toggle command log"
         style={{ color: "var(--text-muted)", padding: "4px" }}
       >
         <Terminal size={14} />
@@ -131,6 +147,7 @@ export function Toolbar() {
       <button
         onClick={() => setActiveView(activeView === "settings" ? "graph" : "settings")}
         title="Settings"
+        aria-label="Settings"
         style={{ color: activeView === "settings" ? "var(--accent)" : "var(--text-muted)", padding: "4px" }}
       >
         <Settings size={14} />

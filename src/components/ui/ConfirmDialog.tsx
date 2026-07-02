@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import { AlertTriangle } from "lucide-react";
 import { useConfirmStore } from "../../store/confirmStore";
+import { DialogShell } from "./DialogShell";
 
 export function ConfirmDialog() {
   const { dialog, closeConfirm } = useConfirmStore();
@@ -47,12 +48,12 @@ export function ConfirmDialog() {
   };
 
   return (
-    <div className="dialog-overlay" onClick={handleCancel}>
-      <div
-        className={`dialog-card${dialog.danger ? " danger-approval" : ""}`}
-        style={{ minWidth: 360, maxWidth: 440 }}
-        onClick={(e) => e.stopPropagation()}
-      >
+    <DialogShell
+      label={dialog.title}
+      onClose={handleCancel}
+      className={dialog.danger ? "danger-approval" : undefined}
+      style={{ minWidth: 360, maxWidth: 440 }}
+    >
         {dialog.danger && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
             <AlertTriangle size={18} style={{ color: "var(--danger)" }} />
@@ -87,10 +88,15 @@ export function ConfirmDialog() {
           </button>
 
           {dialog.danger ? (
-            <div
+            <button
               onMouseDown={() => startHold(handleConfirm)}
               onMouseUp={cancelHold}
               onMouseLeave={cancelHold}
+              onKeyDown={(e) => {
+                if ((e.key === "Enter" || e.key === " ") && !holdTimer.current) startHold(handleConfirm);
+              }}
+              onKeyUp={cancelHold}
+              onBlur={cancelHold}
               style={{
                 position: "relative",
                 overflow: "hidden",
@@ -116,7 +122,7 @@ export function ConfirmDialog() {
               <span style={{ position: "relative", zIndex: 1 }}>
                 {holdProgress > 0 ? "Holding..." : `Hold to ${dialog.confirmLabel ?? "Confirm"}`}
               </span>
-            </div>
+            </button>
           ) : (
             <button
               onClick={handleConfirm}
@@ -133,7 +139,6 @@ export function ConfirmDialog() {
             </button>
           )}
         </div>
-      </div>
-    </div>
+    </DialogShell>
   );
 }

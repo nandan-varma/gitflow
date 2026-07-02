@@ -30,6 +30,14 @@ import { useCommandLogStore } from "../store/commandLogStore";
 import { useIpcEvent } from "../hooks/useIpcEvent";
 import { useContinueRebase, useAbortRebase, useCherryPickContinue, useCherryPickAbort } from "../hooks/useBranches";
 import { useSettingsStore } from "../store/settingsStore";
+import { useRepoStore } from "../store/repoStore";
+import { useAppCommands } from "../hooks/useAppCommands";
+import { isMac } from "../lib/commands";
+import { rebuildAppMenu } from "../lib/menu";
+import { applyTheme } from "../lib/theme";
+import { ipc } from "../lib/ipc";
+import { invalidateAfterRemote } from "../hooks/useRemote";
+import { CommandPalette } from "../components/CommandPalette";
 import { check as checkUpdate } from "@tauri-apps/plugin-updater";
 import type { CommandLogEntry } from "../types/git";
 
@@ -182,7 +190,7 @@ export function AppShell() {
   const {
     activeView, railCollapsed, commandLogOpen, commandLogHeight,
     activeDialog, railWidth, contextPanelWidth, setRailWidth, setContextPanelWidth,
-    setActiveView,
+    setActiveView, diffMode,
   } = useUIStore();
   const pushEntry = useCommandLogStore((s) => s.pushEntry);
   const { data: repoInfo } = useRepoInfo();
@@ -191,6 +199,12 @@ export function AppShell() {
 
   useRepoChangeListener();
   useIpcEvent<CommandLogEntry>("command-log", pushEntry);
+  useAppCommands();
+
+  const { currentRepoPath, recentRepos } = useRepoStore();
+  useEffect(() => {
+    if (isMac) rebuildAppMenu().catch(() => {});
+  }, [currentRepoPath, recentRepos, diffMode]);
 
   const checkUpdatesOnStartup = useSettingsStore((s) => s.checkUpdatesOnStartup);
   const updateChecked = useRef(false);
@@ -199,6 +213,20 @@ export function AppShell() {
     updateChecked.current = true;
     checkUpdate().then((u) => { if (u) setActiveView("settings"); }).catch(() => {});
   }, []);
+
+  const theme = useSettingsStore((s) => s.theme);
+  useEffect(() => applyTheme(theme), [theme]);
+
+  // Silent background fetch — no toast; results land via the usual invalidations
+  const autoFetchEnabled = useSettingsStore((s) => s.autoFetchEnabled);
+  const autoFetchMinutes = useSettingsStore((s) => s.autoFetchMinutes);
+  useEffect(() => {
+    if (!autoFetchEnabled || !currentRepoPath) return;
+    const id = setInterval(() => {
+      ipc.gitFetch().then(invalidateAfterRemote).catch(() => {});
+    }, Math.max(1, autoFetchMinutes) * 60_000);
+    return () => clearInterval(id);
+  }, [autoFetchEnabled, autoFetchMinutes, currentRepoPath]);
 
   const isRebasing = repoInfo?.state === "rebase";
 
@@ -234,7 +262,7 @@ export function AppShell() {
     }}>
       {/* Left Rail */}
       <div style={{
-        width: railCollapsed ? 48 : "var(--rail-dyn)",
+        width: railCollapsed ? 56 : "var(--rail-dyn)",
         flexShrink: 0,
         overflow: "hidden",
         display: "flex",
@@ -247,7 +275,12 @@ export function AppShell() {
       {!railCollapsed && <ResizeDivider onDelta={handleRailDelta} />}
 
       {/* Main Column */}
-      <div className="main-area" style={{ position: "relative" }}>
+      <div className="main-area" style={{
+        position: "relative",
+        gridTemplateRows: (activeView === "staging" || activeView === "settings")
+          ? "var(--toolbar-height) 1fr"
+          : "var(--toolbar-height) 1fr var(--commit-bar-height)",
+      }}>
         {/* Progress bar at top */}
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, zIndex: 100, pointerEvents: "none" }} />
 
@@ -288,6 +321,7 @@ export function AppShell() {
       {activeDialog === "interactive-rebase" && <InteractiveRebaseDialog />}
       {activeDialog === "stash-push" && <StashPushDialog />}
       {activeDialog === "about" && <AboutDialog />}
+      {activeDialog === "command-palette" && <CommandPalette />}
       <ContextMenu />
       <AIChat />
       <ConfirmDialog />

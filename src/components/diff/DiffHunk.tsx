@@ -128,7 +128,7 @@ export function DiffHunk({ hunk, path, mode }: Props) {
 
       {/* Lines scroll independently so the header above never moves */}
       <div style={{ overflowX: "auto" }}>
-        <div style={{ minWidth: "max-content" }}>
+        <div style={{ width: "max-content", minWidth: "100%" }}>
           {hunk.lines.map((line, i) => (
             <DiffLineComp
               key={i}

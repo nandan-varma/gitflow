@@ -1,11 +1,17 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { ChevronLeft } from "lucide-react";
 import { useCommitDetail } from "../../hooks/useCommitGraph";
 import { useDiffCommit } from "../../hooks/useDiff";
 import { useUIStore } from "../../store/uiStore";
 import { DiffView } from "../diff/DiffView";
 import { Skeleton } from "../ui/Skeleton";
+import { Spinner } from "../ui/Spinner";
 import { formatRelativeTime } from "../../lib/diffParser";
+import { ipc } from "../../lib/ipc";
+import { useSettingsStore } from "../../store/settingsStore";
+import { rowProps } from "../../lib/a11y";
 import type { ChangedFile } from "../../types/graph";
+import type { MenuItem } from "../../types/contextMenu";
 
 const STATUS_COLOR: Record<string, string> = {
   added: "var(--success)",
@@ -14,48 +20,16 @@ const STATUS_COLOR: Record<string, string> = {
   modified: "var(--accent)",
 };
 
-function FileRow({ file, selected, onSelect }: { file: ChangedFile; selected: boolean; onSelect: () => void }) {
-  const color = STATUS_COLOR[file.status] ?? "var(--text-muted)";
-  return (
-    <div
-      onClick={onSelect}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "3px 12px",
-        cursor: "pointer",
-        background: selected ? "rgba(76,139,245,0.12)" : undefined,
-        borderLeft: selected ? "2px solid var(--accent)" : "2px solid transparent",
-      }}
-      onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = "var(--bg-hover)"; }}
-      onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = ""; }}
-    >
-      <span style={{ fontSize: 10, color, fontWeight: 600, flexShrink: 0, width: 12, textAlign: "center" }}>
-        {file.status[0].toUpperCase()}
-      </span>
-      <span style={{ flex: 1, fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-        {file.old_path ? `${file.old_path} → ${file.path}` : file.path}
-      </span>
-      <span style={{ fontSize: 10, color: "var(--success)", flexShrink: 0 }}>+{file.additions}</span>
-      <span style={{ fontSize: 10, color: "var(--danger)", flexShrink: 0 }}>-{file.deletions}</span>
-    </div>
-  );
-}
+const basename = (p: string) => p.split("/").pop() ?? p;
 
 export function CommitDetail() {
-  const { selectedCommitOid } = useUIStore();
+  const { selectedCommitOid, showContextMenu, openBlame, openFileHistory } = useUIStore();
+  const { codeEditor, terminalApp } = useSettingsStore();
   const { data: detail, isLoading } = useCommitDetail(selectedCommitOid);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
-  const { data: fileDiff } = useDiffCommit(selectedCommitOid, selectedPath);
+  const { data: fileDiff, isLoading: diffLoading } = useDiffCommit(selectedCommitOid, selectedPath);
 
-  if (!selectedCommitOid) {
-    return (
-      <div style={{ padding: 16, color: "var(--text-muted)", fontSize: 12, textAlign: "center" }}>
-        Select a commit to view details
-      </div>
-    );
-  }
+  useEffect(() => { setSelectedPath(null); }, [selectedCommitOid]);
 
   if (isLoading) {
     return (
@@ -71,12 +45,74 @@ export function CommitDetail() {
 
   if (!detail) return null;
 
+  const fileContextMenu = (file: ChangedFile): MenuItem[] => [
+    { label: "Blame", action: () => openBlame(file.path) },
+    { label: "File History", action: () => openFileHistory(file.path) },
+    "separator",
+    { label: "Open in Editor", action: () => { ipc.openInVscode(file.path, codeEditor).catch(() => {}); } },
+    { label: "Reveal in Finder", action: () => { ipc.revealInFinder(file.path).catch(() => {}); } },
+    { label: "Open Terminal Here", action: () => { ipc.openInTerminal(file.path, terminalApp).catch(() => {}); } },
+    "separator",
+    { label: "Copy Path", action: () => { navigator.clipboard.writeText(file.path).catch(() => {}); } },
+  ];
+
+  // Diff view — file selected, show full-height diff with back button
+  if (selectedPath) {
+    const file = detail.changed_files.find((f) => f.path === selectedPath);
+    return (
+      <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "5px 8px",
+            borderBottom: "1px solid var(--border)",
+            flexShrink: 0,
+            background: "var(--bg-surface)",
+          }}
+        >
+          <button
+            onClick={() => setSelectedPath(null)}
+            style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "var(--accent)", padding: "2px 6px", borderRadius: 4, flexShrink: 0 }}
+          >
+            <ChevronLeft size={12} />
+            {detail.changed_files.length} files
+          </button>
+          <span
+            style={{ flex: 1, fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+            title={selectedPath}
+          >
+            {selectedPath}
+          </span>
+          {file && (
+            <button
+              onContextMenu={(e) => { e.preventDefault(); showContextMenu(e.clientX, e.clientY, fileContextMenu(file)); }}
+              onClick={(e) => { showContextMenu(e.clientX, e.clientY, fileContextMenu(file)); }}
+              style={{ fontSize: 10, color: "var(--text-muted)", padding: "2px 4px", flexShrink: 0 }}
+              title="More actions"
+            >
+              ···
+            </button>
+          )}
+        </div>
+        <div style={{ flex: 1, overflow: "hidden" }}>
+          {diffLoading ? (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+              <Spinner />
+            </div>
+          ) : fileDiff ? (
+            <DiffView diff={fileDiff} path={selectedPath} mode="commit" />
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  // Files list view
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
-        <div data-selectable style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)", marginBottom: 4 }}>
-          {detail.summary}
-        </div>
+      <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
         {detail.body && (
           <div data-selectable style={{ fontSize: 11, color: "var(--text-secondary)", whiteSpace: "pre-wrap", marginBottom: 6 }}>
             {detail.body}
@@ -94,22 +130,42 @@ export function CommitDetail() {
         </div>
       </div>
 
-      <div style={{ flexShrink: 0, borderBottom: fileDiff ? "1px solid var(--border)" : undefined, maxHeight: "45%", overflowY: "auto" }}>
-        {detail.changed_files.map((f) => (
-          <FileRow
-            key={f.path}
-            file={f}
-            selected={selectedPath === f.path}
-            onSelect={() => setSelectedPath(selectedPath === f.path ? null : f.path)}
-          />
-        ))}
+      <div style={{ flex: 1, overflowY: "auto" }}>
+        {detail.changed_files.map((file) => {
+          const color = STATUS_COLOR[file.status] ?? "var(--text-muted)";
+          return (
+            <div
+              key={file.path}
+              onClick={() => setSelectedPath(file.path)}
+              {...rowProps(() => setSelectedPath(file.path))}
+              aria-label={`${file.status} file ${file.path}`}
+              onContextMenu={(e) => { e.preventDefault(); showContextMenu(e.clientX, e.clientY, fileContextMenu(file)); }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "4px 12px",
+                cursor: "pointer",
+                borderLeft: "2px solid transparent",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-hover)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = ""; }}
+            >
+              <span style={{ fontSize: 10, color, fontWeight: 600, flexShrink: 0, width: 12, textAlign: "center" }}>
+                {file.status[0].toUpperCase()}
+              </span>
+              <span
+                style={{ flex: 1, fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                title={file.old_path ? `${file.old_path} → ${file.path}` : file.path}
+              >
+                {file.old_path ? `${basename(file.old_path)} → ${basename(file.path)}` : basename(file.path)}
+              </span>
+              <span style={{ fontSize: 10, color: "var(--success)", flexShrink: 0 }}>+{file.additions}</span>
+              <span style={{ fontSize: 10, color: "var(--danger)", flexShrink: 0 }}>-{file.deletions}</span>
+            </div>
+          );
+        })}
       </div>
-
-      {fileDiff && selectedPath && (
-        <div style={{ flex: 1, overflow: "hidden" }}>
-          <DiffView diff={fileDiff} path={selectedPath} mode="commit" />
-        </div>
-      )}
     </div>
   );
 }

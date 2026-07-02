@@ -3,10 +3,12 @@ import { laneX, rowY, NODE_RADIUS, ROW_HEIGHT, LANE_WIDTH, laneColor } from "../
 import { formatRelativeTime } from "../../lib/diffParser";
 import type { LaidOutNode } from "../../lib/graphLayout";
 import { useUIStore } from "../../store/uiStore";
+import { useSettingsStore } from "../../store/settingsStore";
 import { useToastStore } from "../../store/toastStore";
 import { ipc } from "../../lib/ipc";
 import { queryClient } from "../../lib/queryClient";
 import { toErrMsg } from "../../lib/ipc";
+import { rowProps } from "../../lib/a11y";
 
 interface Props {
   node: LaidOutNode;
@@ -20,11 +22,16 @@ export function CommitNode({ node, selected, onSelect, laneOffset }: Props) {
   const midY = ROW_HEIGHT / 2;
   const color = laneColor(node.color_index);
   const { showContextMenu, openDialog, openBlame, setActiveView } = useUIStore();
+  const { codeEditor } = useSettingsStore();
   const addToast = useToastStore((s) => s.addToast);
 
   return (
     <div
       onClick={onSelect}
+      {...rowProps(onSelect)}
+      tabIndex={-1}
+      aria-label={`Commit ${node.oid.slice(0, 7)}: ${node.summary}`}
+      aria-current={selected || undefined}
       onContextMenu={(e) => {
         e.preventDefault();
         showContextMenu(e.clientX, e.clientY, [
@@ -47,7 +54,7 @@ export function CommitNode({ node, selected, onSelect, laneOffset }: Props) {
             } catch (e) { addToast(`Cherry-pick failed: ${toErrMsg(e)}`, "error"); }
           }},
           "separator",
-          { label: "Open Repo in VS Code", action: () => { ipc.openInVscode("").catch(() => {}); } },
+          { label: "Open Repo in Editor", action: () => { ipc.openInVscode("", codeEditor).catch(() => {}); } },
         ]);
       }}
       style={{

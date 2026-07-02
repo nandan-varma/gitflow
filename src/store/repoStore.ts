@@ -12,6 +12,7 @@ interface RepoStore {
   setRepoInfo: (info: RepoInfo) => void;
   closeRepository: () => void;
   addRecentRepo: (path: string) => void;
+  clearRecentRepos: () => void;
 }
 
 const RECENT_REPOS_KEY = "gitflow:recent-repos";
@@ -55,5 +56,10 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     const recent = [path, ...get().recentRepos.filter((r) => r !== path)].slice(0, 10);
     set({ recentRepos: recent });
     saveRecentRepos(recent);
+  },
+
+  clearRecentRepos: () => {
+    set({ recentRepos: [] });
+    saveRecentRepos([]);
   },
 }));

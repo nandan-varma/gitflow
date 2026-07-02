@@ -194,14 +194,28 @@ export function CommitGraph() {
         {graphSearch && (
           <>
             <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{filteredNodes.length} match{filteredNodes.length !== 1 ? "es" : ""}</span>
-            <button onClick={() => setGraphSearch("")} style={{ color: "var(--text-muted)", padding: 2 }}><X size={12} /></button>
+            <button onClick={() => setGraphSearch("")} aria-label="Clear search" style={{ color: "var(--text-muted)", padding: 2 }}><X size={12} /></button>
           </>
         )}
       </div>
     <div
       ref={parentRef}
       onScroll={handleScroll}
-      style={{ flex: 1, overflow: "auto", position: "relative" }}
+      tabIndex={0}
+      role="list"
+      aria-label="Commit history"
+      onKeyDown={(e) => {
+        if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+        e.preventDefault();
+        const cur = displayNodes.findIndex((n) => n.oid === selectedCommitOid);
+        const next = e.key === "ArrowDown" ? Math.min(cur + 1, displayNodes.length - 1) : Math.max(cur - 1, 0);
+        const node = displayNodes[next];
+        if (node) {
+          selectCommit(node.oid);
+          virtualizer.scrollToIndex(next);
+        }
+      }}
+      style={{ flex: 1, overflow: "auto", position: "relative", outline: "none" }}
     >
       {/* SVG connector layer — hidden during search to avoid confusing partial edges */}
       <svg

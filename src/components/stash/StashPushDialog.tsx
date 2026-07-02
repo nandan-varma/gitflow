@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useStashPush } from "../../hooks/useStashes";
 import { useUIStore } from "../../store/uiStore";
+import { DialogShell } from "../ui/DialogShell";
 
 export function StashPushDialog() {
   const [message, setMessage] = useState("");
@@ -14,7 +15,8 @@ export function StashPushDialog() {
   };
 
   return (
-    <Dialog title="Stash Changes" onClose={closeDialog}>
+    <DialogShell label="Stash changes" onClose={closeDialog}>
+      <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 14, color: "var(--text-primary)" }}>Stash Changes</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>
           Message (optional)
@@ -43,17 +45,6 @@ export function StashPushDialog() {
           </button>
         </div>
       </div>
-    </Dialog>
-  );
-}
-
-function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="dialog-overlay" onClick={onClose}>
-      <div className="dialog-card" onClick={(e) => e.stopPropagation()}>
-        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 14, color: "var(--text-primary)" }}>{title}</div>
-        {children}
-      </div>
-    </div>
+    </DialogShell>
   );
 }
