@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { check as checkUpdate } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 import OpenAI from "openai";
 import { useSettingsStore } from "../../store/settingsStore";
 import { useUIStore } from "../../store/uiStore";
@@ -17,7 +18,6 @@ type UpdateState =
   | { status: "up-to-date" }
   | { status: "available"; version: string; body: string | null | undefined; update: Awaited<ReturnType<typeof checkUpdate>> }
   | { status: "downloading" }
-  | { status: "ready"; version: string }
   | { status: "error"; message: string };
 
 type TestState =
@@ -204,7 +204,7 @@ export function SettingsPage() {
     try {
       const version = updateState.version;
       await updateState.update!.downloadAndInstall();
-      setUpdateState({ status: "ready", version });
+      await relaunch();
     } catch (e: unknown) {
       setUpdateState({ status: "error", message: toErrMsg(e) });
     }
@@ -528,9 +528,7 @@ export function SettingsPage() {
               {updateState.status === "up-to-date" && (
                 <div style={{ fontSize: 12, color: "var(--success)" }}>You're on the latest version.</div>
               )}
-              {updateState.status === "ready" && (
-                <div style={{ fontSize: 12, color: "var(--success)" }}>v{updateState.version} installed — restart the app to apply.</div>
-              )}
+
               {updateState.status === "available" && (
                 <div style={{ fontSize: 12, color: "var(--text-secondary)", whiteSpace: "pre-wrap" }}>
                   {updateState.body ?? `v${updateState.version} is available.`}

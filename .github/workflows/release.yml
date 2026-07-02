@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 # Retagging (delete + repush) cancels the superseded build instead of
-# running two full 4-platform matrices to completion.
+# running two full 3-platform matrices to completion.
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: true
@@ -21,13 +21,14 @@ jobs:
       matrix:
         include:
           - platform: macos-latest
-            target: aarch64-apple-darwin
-          - platform: macos-latest
-            target: x86_64-apple-darwin
+            target: universal-apple-darwin
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
           - platform: ubuntu-22.04
             target: ''
+            rust-targets: ''
           - platform: windows-latest
             target: ''
+            rust-targets: ''
 
     runs-on: ${{ matrix.platform }}
 
@@ -38,31 +39,22 @@ jobs:
         with:
           version: 11
 
+      # No caching in this workflow: runs happen on tag refs, and caches
+      # saved there can never be restored by later tags — pure storage waste.
+      # Public-repo minutes are free, so cold builds cost nothing.
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri -> target
-          # the two macOS jobs otherwise share one auto key and evict each other
-          key: ${{ matrix.target }}
-          cache-all-crates: true
-          cache-workspace-crates: true
-          cache-on-failure: true
+          targets: ${{ matrix.rust-targets }}
 
       - name: Install Linux system deps
         if: matrix.platform == 'ubuntu-22.04'
-        uses: awalsh128/cache-apt-pkgs-action@v1.6.3
-        with:
-          packages: libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-          version: 1
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - run: pnpm install --frozen-lockfile
 
@@ -77,8 +69,7 @@ jobs:
           releaseBody: |
             ## Installation
 
-            - **macOS (Apple Silicon)**: download `GitFlow-Studio_*_aarch64.dmg`
-            - **macOS (Intel)**: download `GitFlow-Studio_*_x64.dmg`
+            - **macOS (Apple Silicon & Intel)**: download `GitFlow-Studio_*_universal.dmg`
             - **Windows**: download `GitFlow-Studio_*_x64-setup.exe`
             - **Linux**: download `.AppImage` (portable) or `.deb` (Debian/Ubuntu)
 
