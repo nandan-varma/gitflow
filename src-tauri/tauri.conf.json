@@ -17,9 +17,7 @@
         "height": 800,
         "minWidth": 900,
         "minHeight": 600,
-        "decorations": false,
-        "transparent": true,
-        "shadow": true
+        "decorations": false
       }
     ],
     "security": {
@@ -28,7 +26,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDc5MkIyNERBNjQ3NjU1MzcKUldRM1ZYWmsyaVFyZVQ5R0JZdkExdnBrMm5sdStMRHlUcWJlbVl2Tlh3MVB6clRxU09jSG1lVlIK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDhBMjE1QUIyOThCMDVDNTgKUldSWVhMQ1lzbG9oaWpCV2NSeE5oNFhOcm1WeUxSZDlBak93MFM4a2ZNTTdqajJ0Um43allkaDEK",
       "endpoints": [
         "https://github.com/nandan-varma/gitflow/releases/latest/download/latest.json"
       ]
