@@ -12,9 +12,28 @@ interface Props {
   hunk: DiffHunkType;
   path: string;
   mode: "workdir" | "staged" | "commit";
+  diffMode?: "unified" | "split";
 }
 
-export function DiffHunk({ hunk, path, mode }: Props) {
+function pairLines(lines: DiffLine[]) {
+  const pairs: { left: DiffLine | null; right: DiffLine | null }[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    if (lines[i].origin === "-") {
+      const left = lines[i++];
+      const right = lines[i]?.origin === "+" ? lines[i++] : null;
+      pairs.push({ left, right });
+    } else if (lines[i].origin === "+") {
+      pairs.push({ left: null, right: lines[i++] });
+    } else {
+      pairs.push({ left: lines[i], right: lines[i] });
+      i++;
+    }
+  }
+  return pairs;
+}
+
+export function DiffHunk({ hunk, path, mode, diffMode = "unified" }: Props) {
   const readOnly = mode === "commit";
   const { selectedLines, toggleLine, selectRange, clearSelection } = useStagingStore();
   const showConfirm = useConfirmStore((s) => s.showConfirm);
@@ -128,17 +147,50 @@ export function DiffHunk({ hunk, path, mode }: Props) {
 
       {/* Lines scroll independently so the header above never moves */}
       <div style={{ overflowX: "auto" }}>
-        <div style={{ width: "max-content", minWidth: "100%" }}>
-          {hunk.lines.map((line, i) => (
-            <DiffLineComp
-              key={i}
-              line={line}
-              lineKey={lineKeys[i]}
-              selected={readOnly ? false : selectedLines.has(lineKeys[i])}
-              onToggle={readOnly ? undefined : () => toggleLine(lineKeys[i])}
-            />
-          ))}
-        </div>
+        {diffMode === "split" ? (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", width: "max-content", minWidth: "100%" }}>
+            {pairLines(hunk.lines).map(({ left, right }, i) => (
+              <React.Fragment key={i}>
+                <div style={{ borderRight: "1px solid var(--border)" }}>
+                  {left ? (
+                    <DiffLineComp
+                      line={left}
+                      lineKey={lineKeys[hunk.lines.indexOf(left)]}
+                      selected={false}
+                      onToggle={undefined}
+                    />
+                  ) : (
+                    <div style={{ height: 20, background: "var(--bg-base)" }} />
+                  )}
+                </div>
+                <div>
+                  {right ? (
+                    <DiffLineComp
+                      line={right}
+                      lineKey={lineKeys[hunk.lines.indexOf(right)]}
+                      selected={false}
+                      onToggle={undefined}
+                    />
+                  ) : (
+                    <div style={{ height: 20, background: "var(--bg-base)" }} />
+                  )}
+                </div>
+              </React.Fragment>
+            ))}
+          </div>
+        ) : (
+          <div style={{ width: "max-content", minWidth: "100%" }}>
+            {hunk.lines.map((line, i) => (
+              <DiffLineComp
+                key={i}
+                line={line}
+                lineKey={lineKeys[i]}
+                selected={readOnly ? false : selectedLines.has(lineKeys[i])}
+                onToggle={readOnly ? undefined : () => toggleLine(lineKeys[i])}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

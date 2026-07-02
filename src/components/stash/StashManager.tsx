@@ -1,10 +1,11 @@
-import React from "react";
+import React, { useState } from "react";
 import { Archive, Play, Trash2, Download, PackageOpen } from "lucide-react";
-import { useStashes, useStashPop, useStashApply, useStashDrop } from "../../hooks/useStashes";
+import { useStashes, useStashPop, useStashApply, useStashDrop, useStashDiff } from "../../hooks/useStashes";
 import { useUIStore } from "../../store/uiStore";
 import { useConfirmStore } from "../../store/confirmStore";
 import { Skeleton } from "../ui/Skeleton";
 import { formatRelativeTime } from "../../lib/diffParser";
+import { DiffView } from "../diff/DiffView";
 
 export function StashManager() {
   const { data: stashes = [], isLoading } = useStashes();
@@ -13,6 +14,11 @@ export function StashManager() {
   const pop = useStashPop();
   const apply = useStashApply();
   const drop = useStashDrop();
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const { data: stashDiffs = [] } = useStashDiff(selectedIndex);
+
+  const selectedDiff = stashDiffs.find((d) => d.path === selectedFile) ?? stashDiffs[0] ?? null;
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -28,64 +34,105 @@ export function StashManager() {
         </button>
       </div>
 
-      <div style={{ flex: 1, overflow: "auto" }}>
-        {isLoading ? (
-          <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
-            <Skeleton variant="row" count={3} />
-          </div>
-        ) : stashes.length === 0 ? (
-          <div className="empty-state" style={{ padding: "32px 12px" }}>
-            <PackageOpen size={28} style={{ opacity: 0.3 }} />
-            <span>No stashes</span>
-          </div>
-        ) : (
-          stashes.map((s) => (
-            <div
-              key={s.index}
-              className="list-item"
-              style={{
-                padding: "10px 12px",
-                borderBottom: "1px solid var(--border)",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              <Archive size={14} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {s.message}
-                </div>
-                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-                  stash@{`{${s.index}}`}
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                <button
-                  onClick={() => apply.mutate(s.index)}
-                  title="Apply — restore changes, keep stash"
-                  style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 3, fontSize: 11, background: "rgba(76,175,80,0.15)", color: "var(--success)" }}
-                >
-                  <Download size={11} /> Apply
-                </button>
-                <button
-                  onClick={() => showConfirm({ title: "Pop Stash", message: `Pop stash@{${s.index}} — "${s.message}". Restores changes then deletes the stash.`, danger: true, confirmLabel: "Pop", onConfirm: () => pop.mutate(s.index) })}
-                  title="Pop — restore changes and delete stash"
-                  style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 3, fontSize: 11, background: "rgba(76,139,245,0.15)", color: "var(--accent)" }}
-                >
-                  <Play size={11} /> Pop
-                </button>
-                <button
-                  onClick={() => showConfirm({ title: "Drop Stash", message: `Drop stash@{${s.index}} — "${s.message}"? This permanently deletes the stash without applying the changes.`, danger: true, confirmLabel: "Drop", onConfirm: () => drop.mutate(s.index) })}
-                  title="Drop — delete stash without applying"
-                  style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 3, fontSize: 11, background: "rgba(244,67,54,0.15)", color: "var(--danger)" }}
-                >
-                  <Trash2 size={11} /> Drop
-                </button>
-              </div>
+      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+        {/* Stash list */}
+        <div style={{ width: 280, flexShrink: 0, overflowY: "auto", borderRight: "1px solid var(--border)" }}>
+          {isLoading ? (
+            <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+              <Skeleton variant="row" count={3} />
             </div>
-          ))
-        )}
+          ) : stashes.length === 0 ? (
+            <div className="empty-state" style={{ padding: "32px 12px" }}>
+              <PackageOpen size={28} style={{ opacity: 0.3 }} />
+              <span>No stashes</span>
+            </div>
+          ) : (
+            stashes.map((s) => (
+              <div
+                key={s.index}
+                className="list-item"
+                onClick={() => { setSelectedIndex(s.index); setSelectedFile(null); }}
+                style={{
+                  padding: "10px 12px",
+                  borderBottom: "1px solid var(--border)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                  cursor: "pointer",
+                  background: selectedIndex === s.index ? "rgba(76,139,245,0.08)" : undefined,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Archive size={14} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {s.message}
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                      stash@{`{${s.index}}`}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 4 }}>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); apply.mutate(s.index); }}
+                    title="Apply — restore changes, keep stash"
+                    style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 3, fontSize: 11, background: "rgba(76,175,80,0.15)", color: "var(--success)" }}
+                  >
+                    <Download size={11} /> Apply
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); showConfirm({ title: "Pop Stash", message: `Pop stash@{${s.index}} — "${s.message}". Restores changes then deletes the stash.`, danger: true, confirmLabel: "Pop", onConfirm: () => pop.mutate(s.index) }); }}
+                    title="Pop — restore changes and delete stash"
+                    style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 3, fontSize: 11, background: "rgba(76,139,245,0.15)", color: "var(--accent)" }}
+                  >
+                    <Play size={11} /> Pop
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); showConfirm({ title: "Drop Stash", message: `Drop stash@{${s.index}} — "${s.message}"? This permanently deletes the stash without applying the changes.`, danger: true, confirmLabel: "Drop", onConfirm: () => { drop.mutate(s.index); if (selectedIndex === s.index) setSelectedIndex(null); } }); }}
+                    title="Drop — delete stash without applying"
+                    style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 3, fontSize: 11, background: "rgba(244,67,54,0.15)", color: "var(--danger)" }}
+                  >
+                    <Trash2 size={11} /> Drop
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Diff preview */}
+        <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          {selectedIndex === null ? (
+            <div className="empty-state" style={{ padding: "32px 12px" }}>
+              <Archive size={28} style={{ opacity: 0.3 }} />
+              <span>Select a stash to preview</span>
+            </div>
+          ) : stashDiffs.length === 0 ? (
+            <div style={{ padding: 16, color: "var(--text-muted)", fontSize: 12 }}>No changes</div>
+          ) : (
+            <>
+              {stashDiffs.length > 1 && (
+                <div style={{ borderBottom: "1px solid var(--border)", padding: "4px 8px", display: "flex", gap: 4, flexWrap: "wrap" }}>
+                  {stashDiffs.map((d) => (
+                    <button
+                      key={d.path}
+                      onClick={() => setSelectedFile(d.path)}
+                      style={{ fontSize: 11, padding: "2px 8px", borderRadius: 3, fontFamily: "var(--font-mono)", background: (selectedFile ?? stashDiffs[0]?.path) === d.path ? "var(--bg-selected)" : "var(--bg-elevated)", color: "var(--text-secondary)" }}
+                    >
+                      {d.path}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {selectedDiff && (
+                <div style={{ flex: 1, overflow: "hidden" }}>
+                  <DiffView diff={selectedDiff} path={selectedDiff.path} mode="commit" />
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

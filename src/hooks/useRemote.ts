@@ -17,8 +17,8 @@ export function useFetch() {
 
 export function usePush() {
   return useMutation({
-    mutationFn: ({ branch, setUpstream }: { branch: string; setUpstream: boolean }) =>
-      ipc.gitPush(branch, setUpstream),
+    mutationFn: ({ branch, setUpstream, force = false }: { branch: string; setUpstream: boolean; force?: boolean }) =>
+      ipc.gitPush(branch, setUpstream, force),
     onSuccess: invalidateAfterRemote,
   });
 }

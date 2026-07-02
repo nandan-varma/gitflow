@@ -51,3 +51,11 @@ export function useStashDrop() {
     },
   });
 }
+
+export function useStashDiff(index: number | null) {
+  return useQuery({
+    queryKey: ["stash-diff", index],
+    queryFn: () => ipc.getStashDiff(index!),
+    enabled: index !== null,
+  });
+}

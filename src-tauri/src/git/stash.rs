@@ -1,5 +1,5 @@
 use serde::Serialize;
-use crate::error::AppError;
+use crate::{error::AppError, git::diff::{FileDiff, diff_to_file_diffs}};
 
 #[cfg(test)]
 mod tests {
@@ -80,4 +80,18 @@ pub fn stash_pop(repo: &mut git2::Repository, index: usize) -> Result<(), AppErr
 pub fn stash_drop(repo: &mut git2::Repository, index: usize) -> Result<(), AppError> {
     repo.stash_drop(index)?;
     Ok(())
+}
+
+pub fn get_stash_diff(repo: &mut git2::Repository, index: usize) -> Result<Vec<FileDiff>, AppError> {
+    let mut stash_oid: Option<git2::Oid> = None;
+    repo.stash_foreach(|i, _name, oid| {
+        if i == index { stash_oid = Some(*oid); false } else { true }
+    })?;
+    let stash_oid = stash_oid.ok_or_else(|| AppError::Other("stash not found".into()))?;
+    let stash_commit = repo.find_commit(stash_oid)?;
+    let parent_commit = stash_commit.parent(0)?;
+    let stash_tree = stash_commit.tree()?;
+    let parent_tree = parent_commit.tree()?;
+    let diff = repo.diff_tree_to_tree(Some(&parent_tree), Some(&stash_tree), None)?;
+    diff_to_file_diffs(&diff)
 }

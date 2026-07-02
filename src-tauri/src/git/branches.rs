@@ -122,6 +122,12 @@ pub fn switch_branch(repo: &git2::Repository, name: &str) -> Result<(), AppError
     Ok(())
 }
 
+pub fn rename_branch(repo: &git2::Repository, old_name: &str, new_name: &str) -> Result<(), AppError> {
+    let mut branch = repo.find_branch(old_name, git2::BranchType::Local)?;
+    branch.rename(new_name, false)?;
+    Ok(())
+}
+
 pub fn delete_branch(repo: &git2::Repository, name: &str, force: bool) -> Result<(), AppError> {
     let mut branch = repo.find_branch(name, git2::BranchType::Local)?;
     if !force {

@@ -16,6 +16,8 @@ import { MergeDialog } from "../components/branches/MergeDialog";
 import { RebaseDialog } from "../components/branches/RebaseDialog";
 import { CreateTagDialog } from "../components/branches/CreateTagDialog";
 import { InteractiveRebaseDialog } from "../components/branches/InteractiveRebaseDialog";
+import { RenameBranchDialog } from "../components/branches/RenameBranchDialog";
+import { ResetDialog } from "../components/branches/ResetDialog";
 import { StashPushDialog } from "../components/stash/StashPushDialog";
 import { AboutDialog } from "../components/about/AboutDialog";
 import { BlameView } from "../components/blame/BlameView";
@@ -319,6 +321,8 @@ export function AppShell() {
       {activeDialog === "rebase" && <RebaseDialog />}
       {activeDialog === "tag-create" && <CreateTagDialog />}
       {activeDialog === "interactive-rebase" && <InteractiveRebaseDialog />}
+      {activeDialog === "branch-rename" && <RenameBranchDialog />}
+      {activeDialog === "reset" && <ResetDialog />}
       {activeDialog === "stash-push" && <StashPushDialog />}
       {activeDialog === "about" && <AboutDialog />}
       {activeDialog === "command-palette" && <CommandPalette />}

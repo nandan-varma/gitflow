@@ -1,16 +1,19 @@
 import React, { useState } from "react";
 import { Tag, ChevronDown, ChevronRight, Plus } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ipc } from "../../lib/ipc";
 import { queryKeys } from "../../lib/queryClient";
 import { useRepoStore } from "../../store/repoStore";
 import { useUIStore } from "../../store/uiStore";
+import { useConfirmStore } from "../../store/confirmStore";
 import { rowProps } from "../../lib/a11y";
 
 export function TagList() {
   const [collapsed, setCollapsed] = useState(true);
   const currentRepoPath = useRepoStore((s) => s.currentRepoPath);
   const { openDialog, showContextMenu } = useUIStore();
+  const showConfirm = useConfirmStore((s) => s.showConfirm);
+  const queryClient = useQueryClient();
 
   const { data: tags = [] } = useQuery({
     queryKey: queryKeys.tags,
@@ -85,6 +88,8 @@ export function TagList() {
                     "separator",
                     { label: "Copy Tag Name", action: () => { navigator.clipboard.writeText(tag.name).catch(() => {}); } },
                     { label: "Copy Commit SHA", action: () => { navigator.clipboard.writeText(tag.target_oid).catch(() => {}); } },
+                    "separator",
+                    { label: "Delete Tag", danger: true, action: () => showConfirm({ title: "Delete Tag", message: `Delete tag "${tag.name}"? This cannot be undone.`, danger: true, confirmLabel: "Delete", onConfirm: async () => { await ipc.deleteTag(tag.name); queryClient.invalidateQueries({ queryKey: ["tags"] }); } }) },
                   ]);
                 }}
               >

@@ -104,7 +104,7 @@ export function DiffView({ diff, path, mode }: Props) {
       {/* Hunks */}
       <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
         {diff.hunks.map((hunk, i) => (
-          <DiffHunk key={i} hunk={hunk} path={path} mode={mode} />
+          <DiffHunk key={i} hunk={hunk} path={path} mode={mode} diffMode={diffMode} />
         ))}
       </div>
     </div>

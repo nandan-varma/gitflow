@@ -89,6 +89,9 @@ export const ipc = {
   createBranch: (name: string, fromOid?: string) =>
     invoke<void>("cmd_create_branch", { name, fromOid: fromOid ?? null }),
 
+  renameBranch: (oldName: string, newName: string) =>
+    invoke<void>("cmd_rename_branch", { oldName, newName }),
+
   switchBranch: (name: string) =>
     invoke<void>("cmd_switch_branch", { name }),
 
@@ -116,7 +119,13 @@ export const ipc = {
   createTag: (name: string, oid: string, message?: string) =>
     invoke<void>("cmd_create_tag", { name, oid, message: message ?? null }),
 
+  deleteTag: (name: string) =>
+    invoke<void>("cmd_delete_tag", { name }),
+
   // Stash
+  getStashDiff: (index: number) =>
+    invoke<FileDiff[]>("cmd_get_stash_diff", { index }),
+
   listStashes: () =>
     invoke<StashEntry[]>("cmd_list_stashes"),
 
@@ -146,8 +155,14 @@ export const ipc = {
   gitFetch: () =>
     invoke<string>("cmd_git_fetch"),
 
-  gitPush: (branch: string, setUpstream: boolean) =>
-    invoke<string>("cmd_git_push", { branch, setUpstream }),
+  gitPush: (branch: string, setUpstream: boolean, force = false) =>
+    invoke<string>("cmd_git_push", { branch, setUpstream, force }),
+
+  gitRevert: (oid: string) =>
+    invoke<string>("cmd_git_revert", { oid }),
+
+  gitReset: (oid: string, mode: string) =>
+    invoke<string>("cmd_git_reset", { oid, mode }),
 
   gitPull: (rebase = true) =>
     invoke<string>("cmd_git_pull", { rebase }),

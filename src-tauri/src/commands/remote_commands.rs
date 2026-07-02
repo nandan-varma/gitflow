@@ -45,15 +45,47 @@ pub async fn cmd_git_fetch(state: State<'_, AppState>) -> Result<String, AppErro
 pub async fn cmd_git_push(
     branch: String,
     set_upstream: bool,
+    force: bool,
     state: State<'_, AppState>,
 ) -> Result<String, AppError> {
     let t = std::time::Instant::now();
-    let r = if set_upstream {
-        run_git(&["push", "--set-upstream", "origin", &branch], &state).await
+    let mut args = vec!["push"];
+    if set_upstream {
+        args.extend(["--set-upstream", "origin", branch.as_str()]);
     } else {
-        run_git(&["push", "origin", &branch], &state).await
-    };
+        args.extend(["origin", branch.as_str()]);
+    }
+    if force { args.push("--force-with-lease"); }
+    let r = run_git(&args, &state).await;
     state.log_command("cmd_git_push", t, &r);
+    r
+}
+
+#[tauri::command]
+pub async fn cmd_delete_tag(name: String, state: State<'_, AppState>) -> Result<String, AppError> {
+    let t = std::time::Instant::now();
+    let r = run_git(&["tag", "-d", &name], &state).await;
+    state.log_command("cmd_delete_tag", t, &r);
+    r
+}
+
+#[tauri::command]
+pub async fn cmd_git_revert(oid: String, state: State<'_, AppState>) -> Result<String, AppError> {
+    let t = std::time::Instant::now();
+    let r = run_git(&["revert", "--no-commit", &oid], &state).await;
+    state.log_command("cmd_git_revert", t, &r);
+    r
+}
+
+#[tauri::command]
+pub async fn cmd_git_reset(oid: String, mode: String, state: State<'_, AppState>) -> Result<String, AppError> {
+    let t = std::time::Instant::now();
+    let mode_flag = match mode.as_str() {
+        "soft" | "mixed" | "hard" => format!("--{mode}"),
+        _ => return Err(AppError::InvalidArgument("mode must be soft, mixed, or hard".into())),
+    };
+    let r = run_git(&["reset", &mode_flag, &oid], &state).await;
+    state.log_command("cmd_git_reset", t, &r);
     r
 }
 

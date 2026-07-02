@@ -125,6 +125,65 @@ fn diff_to_file_diff(diff: &git2::Diff, requested_path: &str) -> Result<FileDiff
     Ok(FileDiff { path: actual_path, old_path, is_binary, hunks, stats })
 }
 
+pub fn diff_to_file_diffs(diff: &git2::Diff) -> Result<Vec<FileDiff>, AppError> {
+    let events: Rc<RefCell<Vec<DiffEvent>>> = Rc::new(RefCell::new(Vec::new()));
+    let e_file = Rc::clone(&events);
+    let e_bin  = Rc::clone(&events);
+    let e_hunk = Rc::clone(&events);
+    let e_line = Rc::clone(&events);
+    diff.foreach(
+        &mut |delta, _| {
+            let new_p = delta.new_file().path().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
+            let old_p = delta.old_file().path().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
+            let old_path = if old_p != new_p && !old_p.is_empty() { Some(old_p) } else { None };
+            e_file.borrow_mut().push(DiffEvent::FileMeta { path: new_p, old_path });
+            true
+        },
+        Some(&mut |_delta, _binary| { e_bin.borrow_mut().push(DiffEvent::Binary); true }),
+        Some(&mut |_delta, hunk| {
+            let header = std::str::from_utf8(hunk.header()).unwrap_or("").trim().to_string();
+            e_hunk.borrow_mut().push(DiffEvent::Hunk { header, old_start: hunk.old_start(), old_lines: hunk.old_lines(), new_start: hunk.new_start(), new_lines: hunk.new_lines() });
+            true
+        }),
+        Some(&mut |_delta, _hunk, line| {
+            e_line.borrow_mut().push(DiffEvent::Line(DiffLine { origin: line.origin(), content: std::str::from_utf8(line.content()).unwrap_or("").to_string(), old_lineno: line.old_lineno(), new_lineno: line.new_lineno() }));
+            true
+        }),
+    )?;
+    drop((e_file, e_bin, e_hunk, e_line));
+    let all_events = Rc::try_unwrap(events).unwrap().into_inner();
+
+    let mut result: Vec<FileDiff> = Vec::new();
+    let mut cur_path = String::new();
+    let mut cur_old_path: Option<String> = None;
+    let mut cur_hunks: Vec<DiffHunk> = Vec::new();
+    let mut cur_binary = false;
+    let mut cur_stats = HunkStats::default();
+
+    for event in all_events {
+        match event {
+            DiffEvent::FileMeta { path, old_path } => {
+                if !cur_path.is_empty() {
+                    result.push(FileDiff { path: cur_path, old_path: cur_old_path, is_binary: cur_binary, hunks: cur_hunks, stats: cur_stats });
+                }
+                cur_path = path; cur_old_path = old_path; cur_hunks = Vec::new(); cur_binary = false; cur_stats = HunkStats::default();
+            }
+            DiffEvent::Binary => { cur_binary = true; }
+            DiffEvent::Hunk { header, old_start, old_lines, new_start, new_lines } => {
+                cur_hunks.push(DiffHunk { header, old_start, old_lines, new_start, new_lines, lines: Vec::new() });
+            }
+            DiffEvent::Line(line) => {
+                match line.origin { '+' => cur_stats.additions += 1, '-' => cur_stats.deletions += 1, _ => {} }
+                if let Some(h) = cur_hunks.last_mut() { h.lines.push(line); }
+            }
+        }
+    }
+    if !cur_path.is_empty() {
+        result.push(FileDiff { path: cur_path, old_path: cur_old_path, is_binary: cur_binary, hunks: cur_hunks, stats: cur_stats });
+    }
+    Ok(result)
+}
+
 pub fn get_diff_workdir(repo: &git2::Repository, path: &str) -> Result<FileDiff, AppError> {
     let mut opts = git2::DiffOptions::new();
     opts.pathspec(path)

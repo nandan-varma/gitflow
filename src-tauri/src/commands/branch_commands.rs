@@ -2,7 +2,7 @@ use tauri::State;
 use crate::{
     error::AppError,
     git::branches::{
-        list_branches, create_branch, switch_branch, delete_branch, merge_branch, abort_merge,
+        list_branches, create_branch, switch_branch, delete_branch, rename_branch, merge_branch, abort_merge,
         start_rebase, continue_rebase, abort_rebase,
         BranchInfo, MergeResult, RebaseOutcome,
     },
@@ -49,6 +49,18 @@ pub async fn cmd_delete_branch(
     let t = std::time::Instant::now();
     let r = (|| { let repo = state.open_repo()?; delete_branch(&repo, &name, force) })();
     state.log_command("cmd_delete_branch", t, &r);
+    r
+}
+
+#[tauri::command]
+pub async fn cmd_rename_branch(
+    old_name: String,
+    new_name: String,
+    state: State<'_, AppState>,
+) -> Result<(), AppError> {
+    let t = std::time::Instant::now();
+    let r = (|| { let repo = state.open_repo()?; rename_branch(&repo, &old_name, &new_name) })();
+    state.log_command("cmd_rename_branch", t, &r);
     r
 }
 

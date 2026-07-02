@@ -111,12 +111,17 @@ function BranchItem({ branch, isRemote = false, pr }: { branch: BranchInfo; isRe
             { label: `Rebase Current onto ${branch.name}`, action: () => rebaseBranch.mutate(branch.name) },
             "separator",
             { label: "Push", action: () => push.mutate({ branch: branch.name, setUpstream: !branch.upstream }) },
+            { label: "Force Push", danger: true, action: () => showConfirm({ title: "Force Push", message: `Force push "${branch.name}" with --force-with-lease? This rewrites remote history.`, danger: true, confirmLabel: "Force Push", onConfirm: () => push.mutate({ branch: branch.name, setUpstream: false, force: true }) }) },
             "separator",
+            { label: "Rename Branch…", action: () => openDialog("branch-rename", branch.name) },
             { label: "Delete Branch", danger: true, action: () => showConfirm({ title: "Delete Branch", message: `Delete branch "${branch.name}"? This cannot be undone.`, danger: true, confirmLabel: "Delete", onConfirm: () => deleteBranch.mutate({ name: branch.name, force: false }) }) },
           );
         } else if (branch.is_head) {
           items.push(
             { label: "Push", action: () => push.mutate({ branch: branch.name, setUpstream: false }) },
+            { label: "Force Push", danger: true, action: () => showConfirm({ title: "Force Push", message: `Force push "${branch.name}" with --force-with-lease?`, danger: true, confirmLabel: "Force Push", onConfirm: () => push.mutate({ branch: branch.name, setUpstream: false, force: true }) }) },
+            "separator",
+            { label: "Rename Branch…", action: () => openDialog("branch-rename", branch.name) },
             "separator",
             { label: "Interactive Rebase…", action: () => openDialog("interactive-rebase") },
           );

@@ -94,10 +94,44 @@ After adding any command: register it in `lib.rs` imports + `invoke_handler!`, a
 - **`lib/ipc.ts`** — single file mapping every Tauri `invoke` call. All IPC goes through here; never call `invoke` directly elsewhere.
 - **`lib/graphLayout.ts`** — client-side DAG lane layout: takes raw `GraphPage` from Rust, assigns `x`/`lane` positions for rendering.
 - **`lib/queryClient.ts`** — React Query client + `queryKeys` registry. All query keys live here; use the registry for cache invalidation (prefix-invalidate `["github", "prs"]` to bust all PR state variants).
-- **`store/`** — Zustand stores: `uiStore` (active view, dialogs, panel sizes, context menu state), `repoStore` (repo path), `stagingStore`, `commandLogStore`, `settingsStore` (persisted to `localStorage`).
+- **`lib/commands.ts`** — app-wide command registry (see "Command system" below). Also exports `isMac`, `matchesShortcut`, `toAccelerator`, `formatShortcut`.
+- **`lib/menu.ts`** — native macOS menubar built from the command registry.
+- **`lib/theme.ts`** — resolves the `theme` setting (`system`/`light`/`dark`) to `document.documentElement.dataset.theme`; follows OS appearance live in system mode.
+- **`lib/a11y.ts`** — `rowProps(onActivate)`: spread onto clickable `<div>` rows to add `role="button"`, `tabIndex`, Enter/Space activation, and ⇧F10 → synthesized `contextmenu` event (reuses the row's existing `onContextMenu`).
+- **`store/`** — Zustand stores: `uiStore` (active view, dialogs, panel sizes, context menu state), `repoStore` (repo path, recent repos), `stagingStore`, `commandLogStore`, `confirmStore` (global confirm dialog; danger variant is hold-to-confirm), `toastStore`, `settingsStore` (persisted to `localStorage`; to add a setting, extend the `Settings` interface + `defaults` — persistence derives its keys from `defaults`).
 - **`hooks/`** — React Query hooks wrapping `ipc.*`. All fetching and mutations live here, not in components.
-- **`layouts/AppShell.tsx`** — top-level layout, IPC event listener for `command-log`, and renders the global `<ContextMenu />`.
+- **`layouts/AppShell.tsx`** — top-level layout; mounts `useAppCommands()`, the `command-log` listener, the macOS menu rebuild effect, theme/zoom-on-startup, the auto-fetch interval, and renders the global `<ContextMenu />`, `<CommandPalette />`, `<ConfirmDialog />`, and all `activeDialog` dialogs.
 - **`types/`** — shared TypeScript types mirroring Rust structs (`git.ts`, `diff.ts`, `graph.ts`, `github.ts`), plus `contextMenu.ts` for the `MenuItem` union type.
+
+### Command system (shortcuts, menubar, palette)
+
+One registry feeds three surfaces. `src/hooks/useAppCommands.ts` (mounted once in `AppShell`) builds an `AppCommand[]` (`{ id, label, shortcut?, enabled, run }`, shortcut format `"mod+shift+p"`) every render from hooks/stores and publishes it via `setCommands()` in `src/lib/commands.ts`. Consumers read the registry at call time (never capture stale closures):
+
+1. **Global keydown listener** (in `useAppCommands`) — handles shortcuts on all platforms; skips them on macOS when the native menu is installed (menu key-equivalents fire first), and skips non-`mod` shortcuts while typing in inputs.
+2. **macOS menubar** (`src/lib/menu.ts`) — only on macOS (window is frameless, so Windows/Linux have no menubar). Rebuilt **wholesale** by an `AppShell` effect on `[currentRepoPath, recentRepos, diffMode]` change; menu items call `runCommand(id)`. Must keep the predefined Edit items (Undo/Copy/Paste/…) or webview clipboard shortcuts break.
+3. **Command palette** (`src/components/CommandPalette.tsx`, ⌘K) — lists enabled commands + recent repos; opened via `uiStore.openDialog("command-palette")`.
+
+**To add a command**: add it to the array in `useAppCommands.ts`; it appears in the palette automatically. Add a menu item in `menu.ts` if it belongs in the menubar, and it shows up in the Settings → Keyboard Shortcuts section for free (generated from the registry). Frontend webview/window APIs may need a permission in `src-tauri/capabilities/default.json` (e.g. zoom needed `core:webview:allow-set-webview-zoom`).
+
+### Dialogs
+
+All dialogs render through `src/components/ui/DialogShell.tsx` (overlay + card + `role="dialog"` + Escape-to-close + Tab focus trap + focus restore). Never hand-roll `dialog-overlay`/`dialog-card` markup. Dialog open state lives in `uiStore.activeDialog` (one at a time, payload in `dialogPayload`); confirmations go through `confirmStore.showConfirm()` — the `danger: true` variant requires an 800ms hold (mouse or Enter/Space) to confirm.
+
+### Accessibility conventions
+
+- Clickable non-button rows get `{...rowProps(onActivate)}` from `lib/a11y.ts` (plus an `aria-label`).
+- Icon-only buttons always get `aria-label` (a `title` alone is not announced).
+- `index.css` `focus-visible` rule covers `button`, `[role="button"]`, and `[tabindex="0"]`.
+- Toasts announce via `aria-live="polite"` on `ToastContainer`.
+- Commit graph supports ↑/↓ selection (keydown on the scroll container in `CommitGraph.tsx`, `virtualizer.scrollToIndex`).
+
+### Theming
+
+Dark palette lives in `:root` in `index.css`; the light palette is `:root[data-theme="light"]`. The attribute is always a resolved `"light"`/`"dark"` set by `lib/theme.ts` from `settingsStore.theme` — do not use `prefers-color-scheme` media queries in CSS; add light-mode overrides under the `[data-theme="light"]` selector.
+
+### Settings page
+
+`src/components/settings/SettingsPage.tsx` is data-driven: a `sections: { id, title, rows }[]` array rendered with left-nav scroll-spy and a client-side search that matches row `label + description + keywords`. To add a setting: add the field to `settingsStore`, then add a row object (with `keywords` for search) to the right section. Rows with `full: true` span the column (used for the update status block and the AI test-connection row).
 
 ### Context menu system
 
@@ -111,6 +145,8 @@ const { showContextMenu } = useUIStore();
   { label: "Danger", danger: true, action: () => ... },
 ]); }} />
 ```
+
+`ContextMenu` focuses its first item on open and supports ↑/↓/Enter/Escape. Rows using `rowProps()` open their menu via ⇧F10 with no extra wiring.
 
 ### Text selection
 
@@ -134,9 +170,9 @@ const { showContextMenu } = useUIStore();
 
 ### Key data flows
 
-1. **Repo open**: `RepoSelector` → `ipc.openRepository` → Rust sets `AppState.repo_path`, starts watcher → emits `repo-opened` + watcher emits `repo-changed` events → `useRepoChangeListener` invalidates status/diff on workdir edits, and additionally branches/stashes/repo/graph/conflicts/tags for `.git/` changes.
+1. **Repo open**: `WelcomeScreen` (inside `CommitGraph.tsx`), Toolbar, ⌘O, or File ▸ Open Recent → `repoStore.openRepository` → `ipc.openRepository` → Rust sets `AppState.repo_path`, starts watcher → emits `repo-opened` + watcher emits `repo-changed` events → `useRepoChangeListener` invalidates status/diff on workdir edits, and additionally branches/stashes/repo/graph/conflicts/tags for `.git/` changes.
 2. **Command log**: every Rust command calls `state.log_command(...)` → MPSC → `lib.rs::setup` forwarder → `command-log` Tauri event → `useIpcEvent` in `AppShell` → `commandLogStore`. `log_command` emits timestamp in **seconds** (matching `formatRelativeTime` in `diffParser.ts` which divides `Date.now()` by 1000).
-3. **Remote ops**: toolbar push/fetch/pull buttons call `remote_commands` which shell out to the system `git` binary; all invalidate `["branches"]`, `["repo"]`, `["graph"]`.
+3. **Remote ops**: toolbar push/fetch/pull buttons call `remote_commands` which shell out to the system `git` binary; all invalidate `["branches"]`, `["repo"]`, `["graph"]` (`invalidateAfterRemote` in `useRemote.ts`). Auto-fetch (optional setting) runs the same fetch silently on an interval in `AppShell` — no toast.
 4. **GitHub PR/Issue data**: `gh_commands` shell out to `gh` CLI. `usePullRequests(state)` and `useIssues(state)` accept a state string (`open`/`closed`/`merged`/`all`). Query keys include state: `["github", "prs", state]` and `["github", "issues", state]`. `PullRequestsView` manages type (`both`/`prs`/`issues`) and state filter locally; `BranchList` always fetches open PRs for branch badges.
 5. **Rebase flow**: `rebaseBranch` returns `{ type: "Conflicts" }`; `RepoInfo.state === "rebase"` triggers `RebaseActionBar` in the conflicts view. Use `useContinueRebase` / `useAbortRebase` hooks from `useBranches.ts`.
 5a. **Cherry-pick flow**: mirrors rebase — `cherryPick` returns `{ type: "Conflicts" }`; `RepoInfo.state === "cherry-pick"` triggers `CherryPickActionBar`. Hooks: `useCherryPickContinue` / `useCherryPickAbort` in `useBranches.ts`.

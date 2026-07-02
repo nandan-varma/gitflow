@@ -9,6 +9,7 @@ import { ipc } from "../../lib/ipc";
 import { queryClient } from "../../lib/queryClient";
 import { toErrMsg } from "../../lib/ipc";
 import { rowProps } from "../../lib/a11y";
+import { useConfirmStore } from "../../store/confirmStore";
 
 interface Props {
   node: LaidOutNode;
@@ -24,6 +25,7 @@ export function CommitNode({ node, selected, onSelect, laneOffset }: Props) {
   const { showContextMenu, openDialog, openBlame, setActiveView } = useUIStore();
   const { codeEditor } = useSettingsStore();
   const addToast = useToastStore((s) => s.addToast);
+  const showConfirm = useConfirmStore((s) => s.showConfirm);
 
   return (
     <div
@@ -53,6 +55,15 @@ export function CommitNode({ node, selected, onSelect, laneOffset }: Props) {
               }
             } catch (e) { addToast(`Cherry-pick failed: ${toErrMsg(e)}`, "error"); }
           }},
+          { label: "Revert Commit", action: async () => {
+            try {
+              await ipc.gitRevert(node.oid);
+              queryClient.invalidateQueries({ queryKey: ["status"] });
+              queryClient.invalidateQueries({ queryKey: ["diff"] });
+              setActiveView("staging");
+            } catch (e) { addToast(`Revert failed: ${toErrMsg(e)}`, "error"); }
+          }},
+          { label: "Reset to Here…", action: () => openDialog("reset", { oid: node.oid, summary: node.summary }) },
           "separator",
           { label: "Open Repo in Editor", action: () => { ipc.openInVscode("", codeEditor).catch(() => {}); } },
         ]);
