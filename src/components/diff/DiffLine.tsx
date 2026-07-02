@@ -33,7 +33,6 @@ export function DiffLine({ line, lineKey, selected, onToggle, showLineNumbers = 
         minHeight: 20,
         cursor: isChangeLine && onToggle ? "pointer" : "default",
         minWidth: "100%",
-        width: "max-content",
       }}
       onClick={isChangeLine && onToggle ? onToggle : undefined}
     >

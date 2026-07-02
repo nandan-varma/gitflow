@@ -163,7 +163,6 @@ export function AIChat() {
   }
 
   // ── Resize ──────────────────────────────────
-  const resizing = useRef(false);
   const startResize = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     const startX = e.clientX;

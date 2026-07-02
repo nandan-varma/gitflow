@@ -62,7 +62,7 @@ export function StagingArea() {
 
       {/* Diff + commit */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <div style={{ flex: 1, overflow: "hidden" }}>
+        <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
           {selectedFilePath && hasBoth && (
             <div
               style={{
@@ -103,17 +103,19 @@ export function StagingArea() {
               </button>
             </div>
           )}
-          {showMode === "staged" && hasStaged && (
-            <DiffView diff={stagedDiff!} path={selectedFilePath!} mode="staged" />
-          )}
-          {showMode === "workdir" && hasUnstaged && (
-            <DiffView diff={workdirDiff!} path={selectedFilePath!} mode="workdir" />
-          )}
-          {!selectedFilePath && (
-            <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: 12 }}>
-              Select a file to view diff
-            </div>
-          )}
+          <div style={{ flex: 1, minHeight: 0 }}>
+            {showMode === "staged" && hasStaged && (
+              <DiffView diff={stagedDiff!} path={selectedFilePath!} mode="staged" />
+            )}
+            {showMode === "workdir" && hasUnstaged && (
+              <DiffView diff={workdirDiff!} path={selectedFilePath!} mode="workdir" />
+            )}
+            {!selectedFilePath && (
+              <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: 12 }}>
+                Select a file to view diff
+              </div>
+            )}
+          </div>
         </div>
         <div style={{ flexShrink: 0 }}>
           <CommitEditor />

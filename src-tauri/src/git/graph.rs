@@ -15,15 +15,8 @@ pub struct GraphNode {
 }
 
 #[derive(Debug, Serialize)]
-pub struct GraphEdge {
-    pub from_oid: String,
-    pub to_oid: String,
-}
-
-#[derive(Debug, Serialize)]
 pub struct GraphPage {
     pub nodes: Vec<GraphNode>,
-    pub edges: Vec<GraphEdge>,
     pub has_more: bool,
 }
 
@@ -68,7 +61,6 @@ pub fn get_commit_graph(
     let oids: Vec<git2::Oid> = all_oids.into_iter().take(limit).collect();
 
     let mut nodes: Vec<GraphNode> = Vec::new();
-    let mut edges: Vec<GraphEdge> = Vec::new();
 
     for oid in &oids {
         let commit = repo.find_commit(*oid)?;
@@ -77,13 +69,6 @@ pub fn get_commit_graph(
         let parents: Vec<String> = (0..commit.parent_count())
             .map(|i| commit.parent_id(i).unwrap().to_string())
             .collect();
-
-        for parent_oid in &parents {
-            edges.push(GraphEdge {
-                from_oid: oid_str.clone(),
-                to_oid: parent_oid.clone(),
-            });
-        }
 
         let author = commit.author();
         let refs = ref_map.get(&oid_str).cloned().unwrap_or_default();
@@ -106,11 +91,7 @@ pub fn get_commit_graph(
         });
     }
 
-    Ok(GraphPage {
-        nodes,
-        edges,
-        has_more,
-    })
+    Ok(GraphPage { nodes, has_more })
 }
 
 #[derive(Debug, Serialize)]
@@ -200,13 +181,7 @@ pub fn get_commit_detail(repo: &git2::Repository, oid_str: &str) -> Result<Commi
     )?;
 
     drop((cf_file, cf_line));
-    let changed_files = match Rc::try_unwrap(changed_files) {
-        Ok(inner) => inner.into_inner(),
-        Err(_) => {
-            log::error!("get_commit_detail: Rc<RefCell> still has references after drop");
-            Vec::new()
-        },
-    };
+    let changed_files = Rc::try_unwrap(changed_files).unwrap().into_inner();
 
     let author = commit.author();
     let committer = commit.committer();
@@ -376,15 +351,17 @@ mod tests {
     }
 
     #[test]
-    fn test_graph_has_edges_for_parent_relationships() {
+    fn test_graph_has_parent_relationships() {
         let repo = init_repo();
         let result = get_commit_graph(&repo, 10, 0).unwrap();
-        // Should have 4 edges (5 commits, each pointing to parent except root)
-        assert_eq!(result.edges.len(), 4);
-        // Edges have from/to
-        for edge in &result.edges {
-            assert!(!edge.from_oid.is_empty());
-            assert!(!edge.to_oid.is_empty());
+        // 5 commits total; root has 0 parents, rest have 1 each → 4 parent refs
+        let total_parents: usize = result.nodes.iter().map(|n| n.parents.len()).sum();
+        assert_eq!(total_parents, 4);
+        // Non-root nodes have non-empty parent OIDs
+        for node in result.nodes.iter().filter(|n| !n.parents.is_empty()) {
+            for p in &node.parents {
+                assert!(!p.is_empty());
+            }
         }
         cleanup(repo);
     }

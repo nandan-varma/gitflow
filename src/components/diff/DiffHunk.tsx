@@ -72,7 +72,7 @@ export function DiffHunk({ hunk, path, mode }: Props) {
 
   return (
     <div style={{ marginBottom: 4 }}>
-      {/* Hunk header */}
+      {/* Hunk header — sticky so it stays at screen width while code scrolls */}
       <div
         style={{
           display: "flex",
@@ -126,16 +126,20 @@ export function DiffHunk({ hunk, path, mode }: Props) {
         )}
       </div>
 
-      {/* Lines */}
-      {hunk.lines.map((line, i) => (
-        <DiffLineComp
-          key={i}
-          line={line}
-          lineKey={lineKeys[i]}
-          selected={readOnly ? false : selectedLines.has(lineKeys[i])}
-          onToggle={readOnly ? undefined : () => toggleLine(lineKeys[i])}
-        />
-      ))}
+      {/* Lines scroll independently so the header above never moves */}
+      <div style={{ overflowX: "auto" }}>
+        <div style={{ minWidth: "max-content" }}>
+          {hunk.lines.map((line, i) => (
+            <DiffLineComp
+              key={i}
+              line={line}
+              lineKey={lineKeys[i]}
+              selected={readOnly ? false : selectedLines.has(lineKeys[i])}
+              onToggle={readOnly ? undefined : () => toggleLine(lineKeys[i])}
+            />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

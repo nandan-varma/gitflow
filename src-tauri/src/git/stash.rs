@@ -4,13 +4,20 @@ use crate::error::AppError;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    static COUNTER: AtomicU32 = AtomicU32::new(0);
 
     #[test]
     fn test_stash_list_on_empty_repo() {
-        let mut repo = git2::Repository::init(std::env::temp_dir().join("test_stash_empty")).unwrap();
+        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let tmp = std::env::temp_dir().join(format!("test_stash_{}_{}", std::process::id(), n));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let mut repo = git2::Repository::init(&tmp).unwrap();
         let result = list_stashes(&mut repo).unwrap();
         assert!(result.is_empty());
-        let _ = std::fs::remove_dir_all(repo.path().parent().unwrap());
+        drop(repo);
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }
 

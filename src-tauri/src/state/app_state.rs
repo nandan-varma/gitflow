@@ -1,6 +1,6 @@
 use std::{
     path::PathBuf,
-    sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}},
+    sync::{Arc, Mutex, atomic::{AtomicBool, AtomicU64, Ordering}},
 };
 use tokio::sync::mpsc;
 use serde::Serialize;
@@ -57,9 +57,10 @@ impl AppState {
         start: std::time::Instant,
         result: &Result<T, E>,
     ) {
+        static LOG_SEQ: AtomicU64 = AtomicU64::new(0);
         let now = chrono::Utc::now();
         let entry = CommandLogEntry {
-            id: now.timestamp_nanos_opt().unwrap_or(0).to_string(),
+            id: LOG_SEQ.fetch_add(1, Ordering::Relaxed).to_string(),
             command: name.to_string(),
             timestamp: now.timestamp(),
             duration_ms: start.elapsed().as_millis() as u64,

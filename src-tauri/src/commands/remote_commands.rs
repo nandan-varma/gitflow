@@ -12,7 +12,7 @@ pub fn truncate_stderr(stderr: &str) -> String {
     let lines: Vec<&str> = stderr.lines().filter(|l| !l.is_empty()).collect();
     let joined = lines.iter().take(5).map(|l| l.to_string()).collect::<Vec<_>>().join("\n");
     if joined.len() > 500 {
-        format!("{}…", &joined[..500])
+        format!("{}…", joined.chars().take(500).collect::<String>())
     } else {
         joined
     }

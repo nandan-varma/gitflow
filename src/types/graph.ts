@@ -9,14 +9,8 @@ export interface GraphNode {
   refs: string[];
 }
 
-export interface GraphEdge {
-  from_oid: string;
-  to_oid: string;
-}
-
 export interface GraphPage {
   nodes: GraphNode[];
-  edges: GraphEdge[];
   has_more: boolean;
 }
 

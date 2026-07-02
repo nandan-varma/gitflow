@@ -92,7 +92,7 @@ export function computeLanes(nodes: GraphNode[]): {
       freeLanes.push(assignedLane);
       lane = assignedLane;
     } else {
-      lane = freeLanes.length > 0 ? freeLanes.pop()! : activeLanes.length;
+      lane = freeLanes.length > 0 ? freeLanes.shift()! : activeLanes.length;
       if (lane >= activeLanes.length) activeLanes.push(null);
       colorIndex = nextColor;
       nextColor++;
@@ -119,7 +119,7 @@ export function computeLanes(nodes: GraphNode[]): {
         edgeLane = lane;
         edgeColor = colorIndex;
       } else {
-        const ml = freeLanes.length > 0 ? freeLanes.pop()! : activeLanes.length;
+        const ml = freeLanes.length > 0 ? freeLanes.shift()! : activeLanes.length;
         if (ml >= activeLanes.length) activeLanes.push(null);
         const mc = nextColor;
         nextColor++;

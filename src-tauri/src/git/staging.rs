@@ -1,13 +1,6 @@
-use crate::error::AppError;
-use serde::{Deserialize, Serialize};
+use crate::{error::AppError, git::diff::DiffLine};
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct HunkLine {
-    pub origin: char,
-    pub content: String,
-    pub old_lineno: Option<u32>,
-    pub new_lineno: Option<u32>,
-}
+pub type HunkLine = DiffLine;
 
 /// Stage one path into an already-open index (no write). Deleted files are
 /// staged as removals — add_path errors on missing workdir files.

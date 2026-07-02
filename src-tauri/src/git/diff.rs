@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{cell::RefCell, rc::Rc};
 use crate::error::AppError;
 
@@ -23,7 +23,7 @@ pub struct DiffHunk {
     pub lines: Vec<DiffLine>,
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DiffLine {
     pub origin: char,
     pub content: String,
@@ -91,13 +91,7 @@ fn diff_to_file_diff(diff: &git2::Diff, requested_path: &str) -> Result<FileDiff
     )?;
 
     drop((e_file, e_bin, e_hunk, e_line));
-    let all_events = match Rc::try_unwrap(events) {
-        Ok(inner) => inner.into_inner(),
-        Err(_) => {
-            log::error!("diff_to_file_diff: Rc<RefCell> still has references after drop");
-            Vec::new()
-        },
-    };
+    let all_events = Rc::try_unwrap(events).unwrap().into_inner();
 
     let mut hunks: Vec<DiffHunk> = Vec::new();
     let mut is_binary = false;

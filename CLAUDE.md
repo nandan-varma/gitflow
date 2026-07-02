@@ -87,6 +87,8 @@ After adding any command: register it in `lib.rs` imports + `invoke_handler!`, a
 
 **Stash quirk:** `git/stash.rs` functions require `&mut Repository`. Use `let mut repo = state.open_repo()?` for stash commands.
 
+**Staging type alias:** `git/staging.rs` exports `pub type HunkLine = DiffLine` (from `git/diff.rs`). `HunkLine` is what IPC deserialization uses for hunk-level staging; it is identical to `DiffLine` and derives both `Serialize` and `Deserialize`.
+
 ### Frontend (`src/`)
 
 - **`lib/ipc.ts`** — single file mapping every Tauri `invoke` call. All IPC goes through here; never call `invoke` directly elsewhere.
@@ -116,7 +118,7 @@ const { showContextMenu } = useUIStore();
 
 ### Views
 
-`uiStore.activeView` controls which panel renders. Current values: `graph` | `staging` | `conflicts` | `stash` | `pull-requests` | `settings`.
+`uiStore.activeView` controls which panel renders. Current values: `graph` | `staging` | `conflicts` | `stash` | `pull-requests` | `settings` | `blame` | `file-history`.
 
 | View | Main component | Hook file |
 |------|---------------|-----------|
@@ -125,6 +127,10 @@ const { showContextMenu } = useUIStore();
 | conflicts | `ConflictEditor` | (useRepository) |
 | stash | `StashManager` | `useStashes` |
 | pull-requests | `PullRequestsView` | `useGitHub` |
+| blame | `BlameView` | — |
+| file-history | `FileHistoryView` | — |
+
+`blame` and `file-history` are opened via `uiStore.openBlame(path)` / `uiStore.openFileHistory(path)`, not `setActiveView`.
 
 ### Key data flows
 
@@ -132,8 +138,13 @@ const { showContextMenu } = useUIStore();
 2. **Command log**: every Rust command calls `state.log_command(...)` → MPSC → `lib.rs::setup` forwarder → `command-log` Tauri event → `useIpcEvent` in `AppShell` → `commandLogStore`. `log_command` emits timestamp in **seconds** (matching `formatRelativeTime` in `diffParser.ts` which divides `Date.now()` by 1000).
 3. **Remote ops**: toolbar push/fetch/pull buttons call `remote_commands` which shell out to the system `git` binary; all invalidate `["branches"]`, `["repo"]`, `["graph"]`.
 4. **GitHub PR/Issue data**: `gh_commands` shell out to `gh` CLI. `usePullRequests(state)` and `useIssues(state)` accept a state string (`open`/`closed`/`merged`/`all`). Query keys include state: `["github", "prs", state]` and `["github", "issues", state]`. `PullRequestsView` manages type (`both`/`prs`/`issues`) and state filter locally; `BranchList` always fetches open PRs for branch badges.
-5. **Rebase flow**: `rebaseBranch` returns `{ type: "Conflicts" }`; `RepoInfo.state === "rebase"` triggers `RebaseActionBar` in the conflicts view.
+5. **Rebase flow**: `rebaseBranch` returns `{ type: "Conflicts" }`; `RepoInfo.state === "rebase"` triggers `RebaseActionBar` in the conflicts view. Use `useContinueRebase` / `useAbortRebase` hooks from `useBranches.ts`.
+5a. **Cherry-pick flow**: mirrors rebase — `cherryPick` returns `{ type: "Conflicts" }`; `RepoInfo.state === "cherry-pick"` triggers `CherryPickActionBar`. Hooks: `useCherryPickContinue` / `useCherryPickAbort` in `useBranches.ts`.
 6. **External tool openers**: `opener_commands.rs` shells out to `code <path>` (VS Code), `open -R <path>` (Finder reveal), and `open -a Terminal <dir>`. Path arguments are relative to `AppState.repo_path`; empty string means repo root.
+
+### AI chat (`src/components/ai/`, `src/lib/aiTools.ts`, `src/store/aiStore.ts`)
+
+An in-app AI assistant uses the OpenAI-compatible chat API. Configuration (`aiBaseUrl`, `aiModel`, `aiApiKey`) lives in `settingsStore` (persisted to `localStorage`) — defaults point to `https://api.openai.com/v1` but any OpenAI-compat endpoint works. The AI goes through the same `ipc.*` call path as the UI (command log, watcher, React Query invalidation all fire normally). `aiTools.ts` defines the full tool schema mapping IPC calls to OpenAI function-call format.
 
 ### Log filtering (`lib.rs`)
 

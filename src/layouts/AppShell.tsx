@@ -1,7 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import { useUIStore } from "../store/uiStore";
 import { useConfirmStore } from "../store/confirmStore";
-import { useToastStore } from "../store/toastStore";
 import { RepoRail } from "../components/rail/RepoRail";
 import { Toolbar } from "../components/toolbar/Toolbar";
 import { CommitBar } from "../components/staging/CommitBar";
@@ -29,9 +28,7 @@ import { ErrorBoundary } from "../components/ErrorBoundary";
 import { useRepoChangeListener, useRepoInfo } from "../hooks/useRepository";
 import { useCommandLogStore } from "../store/commandLogStore";
 import { useIpcEvent } from "../hooks/useIpcEvent";
-import { useContinueRebase, useAbortRebase } from "../hooks/useBranches";
-import { ipc, toErrMsg } from "../lib/ipc";
-import { queryClient } from "../lib/queryClient";
+import { useContinueRebase, useAbortRebase, useCherryPickContinue, useCherryPickAbort } from "../hooks/useBranches";
 import { useSettingsStore } from "../store/settingsStore";
 import { check as checkUpdate } from "@tauri-apps/plugin-updater";
 import type { CommandLogEntry } from "../types/git";
@@ -74,40 +71,9 @@ function RebaseActionBar() {
 }
 
 function CherryPickActionBar() {
-  const { setActiveView } = useUIStore();
   const showConfirm = useConfirmStore((s) => s.showConfirm);
-  const addToast = useToastStore((s) => s.addToast);
-  const [aborting, setAborting] = useState(false);
-  const [continuing, setContinuing] = useState(false);
-
-  const handleAbort = async () => {
-    setAborting(true);
-    try {
-      await ipc.cherryPickAbort();
-      queryClient.invalidateQueries({ queryKey: ["status"] });
-      queryClient.invalidateQueries({ queryKey: ["graph"] });
-      queryClient.invalidateQueries({ queryKey: ["conflicts"] });
-      queryClient.invalidateQueries({ queryKey: ["repo"] });
-      setActiveView("graph");
-    } catch {
-      setAborting(false);
-    }
-  };
-
-  const handleContinue = async () => {
-    setContinuing(true);
-    try {
-      const outcome = await ipc.cherryPickContinue();
-      queryClient.invalidateQueries({ queryKey: ["graph"] });
-      queryClient.invalidateQueries({ queryKey: ["status"] });
-      queryClient.invalidateQueries({ queryKey: ["branches"] });
-      queryClient.invalidateQueries({ queryKey: ["repo"] });
-      if (outcome.type === "Success") setActiveView("graph");
-    } catch (e) {
-      setContinuing(false);
-      addToast(`Cherry-pick continue failed: ${toErrMsg(e)}`, "error");
-    }
-  };
+  const continuePick = useCherryPickContinue();
+  const abortPick = useCherryPickAbort();
 
   return (
     <div style={{
@@ -123,18 +89,18 @@ function CherryPickActionBar() {
         Cherry-pick in progress — resolve conflicts, then continue, or abort
       </span>
       <button
-        onClick={() => showConfirm({ title: "Abort Cherry-Pick", message: "Abort the current cherry-pick? All changes made during the cherry-pick will be discarded.", danger: true, confirmLabel: "Abort", onConfirm: handleAbort })}
-        disabled={aborting}
+        onClick={() => showConfirm({ title: "Abort Cherry-Pick", message: "Abort the current cherry-pick? All changes made during the cherry-pick will be discarded.", danger: true, confirmLabel: "Abort", onConfirm: () => abortPick.mutate() })}
+        disabled={abortPick.isPending}
         style={{ padding: "4px 10px", fontSize: 11, borderRadius: 4, border: "1px solid var(--border)", color: "var(--text-secondary)", background: "var(--bg-elevated)" }}
       >
-        {aborting ? "Aborting…" : "Abort"}
+        {abortPick.isPending ? "Aborting…" : "Abort"}
       </button>
       <button
-        onClick={handleContinue}
-        disabled={continuing}
+        onClick={() => continuePick.mutate()}
+        disabled={continuePick.isPending}
         style={{ padding: "4px 10px", fontSize: 11, borderRadius: 4, background: "var(--accent)", color: "#fff", fontWeight: 500 }}
       >
-        {continuing ? "Continuing…" : "Continue Cherry-Pick"}
+        {continuePick.isPending ? "Continuing…" : "Continue Cherry-Pick"}
       </button>
     </div>
   );

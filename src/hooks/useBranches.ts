@@ -106,3 +106,31 @@ export function useAbortRebase() {
     },
   });
 }
+
+export function useCherryPickContinue() {
+  const setActiveView = useUIStore((s) => s.setActiveView);
+  return useMutation({
+    mutationFn: () => ipc.cherryPickContinue(),
+    onSuccess: (outcome) => {
+      queryClient.invalidateQueries({ queryKey: ["graph"] });
+      queryClient.invalidateQueries({ queryKey: ["status"] });
+      queryClient.invalidateQueries({ queryKey: ["branches"] });
+      queryClient.invalidateQueries({ queryKey: ["repo"] });
+      if (outcome.type === "Success") setActiveView("graph");
+    },
+  });
+}
+
+export function useCherryPickAbort() {
+  const setActiveView = useUIStore((s) => s.setActiveView);
+  return useMutation({
+    mutationFn: () => ipc.cherryPickAbort(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["status"] });
+      queryClient.invalidateQueries({ queryKey: ["graph"] });
+      queryClient.invalidateQueries({ queryKey: ["conflicts"] });
+      queryClient.invalidateQueries({ queryKey: ["repo"] });
+      setActiveView("graph");
+    },
+  });
+}
