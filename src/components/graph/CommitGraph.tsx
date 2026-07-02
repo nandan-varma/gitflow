@@ -5,9 +5,10 @@ import { useUIStore } from "../../store/uiStore";
 import { CommitNode } from "./CommitNode";
 import { BezierConnector } from "./BezierConnector";
 import {
-  LANE_WIDTH, ROW_HEIGHT, laneX, rowY, laneColor,
+  LANE_WIDTH, ROW_HEIGHT, laneX, rowY, laneColor, computeLanes,
 } from "../../lib/graphLayout";
-import type { GraphNode, GraphEdge } from "../../types/graph";
+import type { GraphNode } from "../../types/graph";
+import type { LaidOutEdge } from "../../lib/graphLayout";
 import { useRepoStore } from "../../store/repoStore";
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen, GitBranch, Search, X } from "lucide-react";
@@ -106,29 +107,26 @@ export function CommitGraph() {
     () => data?.pages.flatMap((p) => p.nodes) ?? [],
     [data]
   );
-  const allEdges: GraphEdge[] = useMemo(
-    () => data?.pages.flatMap((p) => p.edges) ?? [],
-    [data]
+
+  // Client-side lane assignment (stable across page boundaries)
+  const { nodes: laidOut, edges: laidEdges, totalLanes } = useMemo(
+    () => computeLanes(allNodes),
+    [allNodes]
   );
 
   // Filter nodes by search query
-  const filteredNodes: GraphNode[] = useMemo(() => {
+  const filteredNodes = useMemo(() => {
     const q = graphSearch.trim().toLowerCase();
-    if (!q) return allNodes;
-    return allNodes.filter(
+    if (!q) return laidOut;
+    return laidOut.filter(
       (n) =>
         n.summary.toLowerCase().includes(q) ||
         n.author_name.toLowerCase().includes(q) ||
         n.oid.startsWith(q)
     );
-  }, [allNodes, graphSearch]);
+  }, [laidOut, graphSearch]);
 
-  const totalLanes = useMemo(
-    () => data?.pages[0]?.total_lanes ?? 1,
-    [data]
-  );
-
-  const displayNodes = graphSearch.trim() ? filteredNodes : allNodes;
+  const displayNodes = graphSearch.trim() ? filteredNodes : laidOut;
 
   const virtualizer = useVirtualizer({
     count: displayNodes.length,
@@ -151,17 +149,17 @@ export function CommitGraph() {
   const lastVisible = virtualItems[virtualItems.length - 1]?.index ?? 0;
   const edgeBuffer = 50;
 
-  const visibleEdges = useMemo(
+  const visibleEdges: LaidOutEdge[] = useMemo(
     () =>
-      allEdges.filter((e) => {
-        const fromIdx = oidToIndex.get(e.from_oid) ?? -1;
-        const toIdx = oidToIndex.get(e.to_oid) ?? -1;
+      laidEdges.filter((e) => {
+        const fromIdx = oidToIndex.get(e.fromOid) ?? -1;
+        const toIdx = oidToIndex.get(e.toOid) ?? -1;
         return (
           (fromIdx >= firstVisible - edgeBuffer && fromIdx <= lastVisible + edgeBuffer) ||
           (toIdx >= firstVisible - edgeBuffer && toIdx <= lastVisible + edgeBuffer)
         );
       }),
-    [allEdges, oidToIndex, firstVisible, lastVisible]
+    [laidEdges, oidToIndex, firstVisible, lastVisible]
   );
 
   const isSearching = !!graphSearch.trim();
@@ -213,19 +211,19 @@ export function CommitGraph() {
         style={{ pointerEvents: "none" }}
       >
         {!isSearching && visibleEdges.map((edge, i) => {
-          const fromIdx = oidToIndex.get(edge.from_oid);
-          const toIdx = oidToIndex.get(edge.to_oid);
+          const fromIdx = oidToIndex.get(edge.fromOid);
+          const toIdx = oidToIndex.get(edge.toOid);
           if (fromIdx === undefined) return null;
           // ponytail: off-page parent → stub line to bottom of SVG
           const toY = toIdx !== undefined ? rowY(toIdx) : svgHeight;
           return (
             <BezierConnector
               key={i}
-              fromX={laneX(edge.from_lane)}
+              fromX={laneX(edge.fromLane)}
               fromY={rowY(fromIdx)}
-              toX={laneX(edge.to_lane)}
+              toX={laneX(edge.toLane)}
               toY={toY}
-              color={laneColor(edge.color_index)}
+              color={laneColor(edge.colorIndex)}
             />
           );
         })}

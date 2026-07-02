@@ -1,13 +1,13 @@
 import React, { useState } from "react";
 import { Archive, ChevronDown, ChevronRight, Plus } from "lucide-react";
-import { useStashes, useStashPop } from "../../hooks/useStashes";
+import { useStashes, useStashApply } from "../../hooks/useStashes";
 import { useUIStore } from "../../store/uiStore";
 
 export function StashList() {
   const [collapsed, setCollapsed] = useState(true);
   const { data: stashes = [] } = useStashes();
   const { openDialog } = useUIStore();
-  const pop = useStashPop();
+  const apply = useStashApply();
 
   return (
     <section>
@@ -57,7 +57,7 @@ export function StashList() {
             gap: 6,
             cursor: "pointer",
           }}
-          onClick={() => pop.mutate(s.index)}
+          onClick={() => { if (window.confirm(`Apply stash "${s.message}"?`)) apply.mutate(s.index); }}
         >
           <Archive size={11} style={{ color: "var(--text-muted)" }} />
           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

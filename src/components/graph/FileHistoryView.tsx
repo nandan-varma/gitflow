@@ -66,7 +66,7 @@ export function FileHistoryView() {
         {/* Diff panel */}
         <div style={{ flex: 1, overflow: "hidden" }}>
           {diff && fileHistoryPath ? (
-            <DiffView diff={diff} path={fileHistoryPath} mode="workdir" />
+            <DiffView diff={diff} path={fileHistoryPath} mode="commit" />
           ) : (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--text-muted)", fontSize: 12 }}>
               Select a commit to view diff

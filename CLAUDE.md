@@ -48,7 +48,7 @@ This is a **Tauri 2 desktop app**: a React/TypeScript frontend rendered in a web
   - `gh_commands` — shells out to the `gh` CLI for PR and issue operations
   - `opener_commands` — shells out to `code` / `open` for VS Code, Finder, and Terminal integration
 - **`state/app_state.rs`** — shared `AppState`: repo path (Mutex), file-watcher stop signal, `CommandLogEntry` MPSC sender (`log_tx`).
-- **`watcher/`** — filesystem watcher (`notify`) that emits `repo-changed` Tauri events on `.git/` changes.
+- **`watcher/`** — filesystem watcher (`notify`) that watches the workdir recursively, filters build-dir noise (`node_modules/`, `target/`, etc.) and emits `repo-changed` events with a `git_change` boolean — `.git` mutations cause full invalidation, workdir edits refresh status/diff only.
 - **`error.rs`** — `AppError` enum serialized as `{ kind, message }`.
 
 **Adding a new git2 command** — use the sync closure trick so `log_command` always fires even on early `?` returns:
@@ -128,7 +128,7 @@ const { showContextMenu } = useUIStore();
 
 ### Key data flows
 
-1. **Repo open**: `RepoSelector` → `ipc.openRepository` → Rust sets `AppState.repo_path`, starts watcher → emits `repo-opened` + watcher emits `repo-changed` on `.git/` changes → `useRepoChangeListener` invalidates all queries.
+1. **Repo open**: `RepoSelector` → `ipc.openRepository` → Rust sets `AppState.repo_path`, starts watcher → emits `repo-opened` + watcher emits `repo-changed` events → `useRepoChangeListener` invalidates status/diff on workdir edits, and additionally branches/stashes/repo/graph/conflicts/tags for `.git/` changes.
 2. **Command log**: every Rust command calls `state.log_command(...)` → MPSC → `lib.rs::setup` forwarder → `command-log` Tauri event → `useIpcEvent` in `AppShell` → `commandLogStore`. `log_command` emits timestamp in **seconds** (matching `formatRelativeTime` in `diffParser.ts` which divides `Date.now()` by 1000).
 3. **Remote ops**: toolbar push/fetch/pull buttons call `remote_commands` which shell out to the system `git` binary; all invalidate `["branches"]`, `["repo"]`, `["graph"]`.
 4. **GitHub PR/Issue data**: `gh_commands` shell out to `gh` CLI. `usePullRequests(state)` and `useIssues(state)` accept a state string (`open`/`closed`/`merged`/`all`). Query keys include state: `["github", "prs", state]` and `["github", "issues", state]`. `PullRequestsView` manages type (`both`/`prs`/`issues`) and state filter locally; `BranchList` always fetches open PRs for branch badges.

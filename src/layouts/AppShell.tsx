@@ -74,7 +74,7 @@ function RebaseActionBar() {
 }
 
 function CherryPickActionBar() {
-  const { setActiveView, setCherryPickInProgress, cherryPickOid } = useUIStore();
+  const { setActiveView } = useUIStore();
   const showConfirm = useConfirmStore((s) => s.showConfirm);
   const addToast = useToastStore((s) => s.addToast);
   const [aborting, setAborting] = useState(false);
@@ -84,10 +84,10 @@ function CherryPickActionBar() {
     setAborting(true);
     try {
       await ipc.cherryPickAbort();
-      setCherryPickInProgress(false);
       queryClient.invalidateQueries({ queryKey: ["status"] });
       queryClient.invalidateQueries({ queryKey: ["graph"] });
       queryClient.invalidateQueries({ queryKey: ["conflicts"] });
+      queryClient.invalidateQueries({ queryKey: ["repo"] });
       setActiveView("graph");
     } catch {
       setAborting(false);
@@ -95,14 +95,13 @@ function CherryPickActionBar() {
   };
 
   const handleContinue = async () => {
-    if (!cherryPickOid) return;
     setContinuing(true);
     try {
-      const outcome = await ipc.cherryPickContinue(cherryPickOid);
-      setCherryPickInProgress(false);
+      const outcome = await ipc.cherryPickContinue();
       queryClient.invalidateQueries({ queryKey: ["graph"] });
       queryClient.invalidateQueries({ queryKey: ["status"] });
       queryClient.invalidateQueries({ queryKey: ["branches"] });
+      queryClient.invalidateQueries({ queryKey: ["repo"] });
       if (outcome.type === "Success") setActiveView("graph");
     } catch (e) {
       setContinuing(false);
@@ -222,7 +221,7 @@ export function AppShell() {
   const pushEntry = useCommandLogStore((s) => s.pushEntry);
   const { data: repoInfo } = useRepoInfo();
 
-  const cherryPickInProgress = useUIStore((s) => s.cherryPickInProgress);
+  const isCherryPicking = repoInfo?.state === "cherry-pick";
 
   useRepoChangeListener();
   useIpcEvent<CommandLogEntry>("command-log", pushEntry);
@@ -291,7 +290,7 @@ export function AppShell() {
           <div key={activeView} className="view-enter" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
             <ViewSwitch activeView={activeView} />
             {activeView === "conflicts" && isRebasing && <RebaseActionBar />}
-            {activeView === "conflicts" && cherryPickInProgress && <CherryPickActionBar />}
+            {activeView === "conflicts" && isCherryPicking && <CherryPickActionBar />}
           </div>
         </div>
         {activeView !== "staging" && activeView !== "settings" && <CommitBar />}

@@ -4,8 +4,6 @@ import { useQuery } from "@tanstack/react-query";
 import { ipc } from "../../lib/ipc";
 import { queryKeys } from "../../lib/queryClient";
 import { useRepoStore } from "../../store/repoStore";
-import { useIpcEvent } from "../../hooks/useIpcEvent";
-import { queryClient } from "../../lib/queryClient";
 import { useUIStore } from "../../store/uiStore";
 
 export function TagList() {
@@ -17,10 +15,6 @@ export function TagList() {
     queryKey: queryKeys.tags,
     queryFn: () => ipc.listTags(),
     enabled: !!currentRepoPath,
-  });
-
-  useIpcEvent("repo-changed", () => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.tags });
   });
 
   return (

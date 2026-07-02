@@ -11,10 +11,11 @@ import { queryClient } from "../../lib/queryClient";
 interface Props {
   hunk: DiffHunkType;
   path: string;
-  mode: "workdir" | "staged";
+  mode: "workdir" | "staged" | "commit";
 }
 
 export function DiffHunk({ hunk, path, mode }: Props) {
+  const readOnly = mode === "commit";
   const { selectedLines, toggleLine, selectRange, clearSelection } = useStagingStore();
   const showConfirm = useConfirmStore((s) => s.showConfirm);
   const discardLines = useDiscardLines();
@@ -94,7 +95,7 @@ export function DiffHunk({ hunk, path, mode }: Props) {
           {hunk.header}
         </span>
 
-        {mode === "workdir" && hasSelectedPlus && (
+        {!readOnly && mode === "workdir" && hasSelectedPlus && (
           <button
             onClick={() => showConfirm({ title: "Discard Selected Lines", message: `Discard ${selectedPlusKeys.length} selected line(s) in "${path}"? This reverts these changes from the working directory.`, danger: true, confirmLabel: "Discard", onConfirm: handleDiscardSelected })}
             title="Discard selected lines"
@@ -104,23 +105,25 @@ export function DiffHunk({ hunk, path, mode }: Props) {
             Discard Selected
           </button>
         )}
-        <button
-          onClick={handleStageHunk}
-          title={mode === "workdir" ? "Stage hunk" : "Unstage hunk"}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 3,
-            padding: "2px 8px",
-            borderRadius: 3,
-            background: mode === "workdir" ? "rgba(76,175,80,0.15)" : "rgba(244,67,54,0.15)",
-            color: mode === "workdir" ? "var(--success)" : "var(--danger)",
-            fontSize: 11,
-          }}
-        >
-          {mode === "workdir" ? <Plus size={10} /> : <Minus size={10} />}
-          {mode === "workdir" ? "Stage" : "Unstage"}
-        </button>
+        {!readOnly && (
+          <button
+            onClick={handleStageHunk}
+            title={mode === "workdir" ? "Stage hunk" : "Unstage hunk"}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 3,
+              padding: "2px 8px",
+              borderRadius: 3,
+              background: mode === "workdir" ? "rgba(76,175,80,0.15)" : "rgba(244,67,54,0.15)",
+              color: mode === "workdir" ? "var(--success)" : "var(--danger)",
+              fontSize: 11,
+            }}
+          >
+            {mode === "workdir" ? <Plus size={10} /> : <Minus size={10} />}
+            {mode === "workdir" ? "Stage" : "Unstage"}
+          </button>
+        )}
       </div>
 
       {/* Lines */}
@@ -129,8 +132,8 @@ export function DiffHunk({ hunk, path, mode }: Props) {
           key={i}
           line={line}
           lineKey={lineKeys[i]}
-          selected={selectedLines.has(lineKeys[i])}
-          onToggle={() => toggleLine(lineKeys[i])}
+          selected={readOnly ? false : selectedLines.has(lineKeys[i])}
+          onToggle={readOnly ? undefined : () => toggleLine(lineKeys[i])}
         />
       ))}
     </div>

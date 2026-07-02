@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { useCallback } from "react";
 import { ipc } from "../lib/ipc";
 import { queryClient, queryKeys } from "../lib/queryClient";
 import { useRepoStore } from "../store/repoStore";
@@ -16,15 +15,16 @@ export function useRepoInfo() {
 }
 
 export function useRepoChangeListener() {
-  const invalidateAll = useCallback(() => {
+  useIpcEvent<{ paths: string[]; git_change: boolean }>("repo-changed", (payload) => {
     queryClient.invalidateQueries({ queryKey: ["status"] });
-    queryClient.invalidateQueries({ queryKey: ["branches"] });
-    queryClient.invalidateQueries({ queryKey: ["stashes"] });
-    queryClient.invalidateQueries({ queryKey: ["repo"] });
-    queryClient.invalidateQueries({ queryKey: ["graph"] });
     queryClient.invalidateQueries({ queryKey: ["diff"] });
-    queryClient.invalidateQueries({ queryKey: ["conflicts"] });
-  }, []);
-
-  useIpcEvent("repo-changed", invalidateAll);
+    if (payload.git_change) {
+      queryClient.invalidateQueries({ queryKey: ["branches"] });
+      queryClient.invalidateQueries({ queryKey: ["stashes"] });
+      queryClient.invalidateQueries({ queryKey: ["repo"] });
+      queryClient.invalidateQueries({ queryKey: ["graph"] });
+      queryClient.invalidateQueries({ queryKey: ["conflicts"] });
+      queryClient.invalidateQueries({ queryKey: ["tags"] });
+    }
+  });
 }

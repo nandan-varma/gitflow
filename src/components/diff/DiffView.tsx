@@ -7,7 +7,7 @@ import { useUIStore } from "../../store/uiStore";
 interface Props {
   diff: FileDiff;
   path: string;
-  mode: "workdir" | "staged";
+  mode: "workdir" | "staged" | "commit";
 }
 
 export function DiffView({ diff, path, mode }: Props) {

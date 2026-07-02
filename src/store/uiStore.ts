@@ -18,8 +18,6 @@ interface UIStore {
   activeDialog: ActiveDialog;
   dialogPayload: unknown;
   amending: boolean;
-  cherryPickInProgress: boolean;
-  cherryPickOid: string | null;
   contextMenu: { x: number; y: number; items: MenuItem[] } | null;
   graphSearch: string;
   blameFilePath: string | null;
@@ -37,7 +35,6 @@ interface UIStore {
   openDialog: (dialog: ActiveDialog, payload?: unknown) => void;
   closeDialog: () => void;
   setAmending: (v: boolean) => void;
-  setCherryPickInProgress: (v: boolean, oid?: string | null) => void;
   showContextMenu: (x: number, y: number, items: MenuItem[]) => void;
   hideContextMenu: () => void;
   setGraphSearch: (q: string) => void;
@@ -59,8 +56,6 @@ export const useUIStore = create<UIStore>((set) => ({
   activeDialog: null,
   dialogPayload: null,
   amending: false,
-  cherryPickInProgress: false,
-  cherryPickOid: null,
   contextMenu: null,
   graphSearch: "",
   blameFilePath: null,
@@ -78,7 +73,6 @@ export const useUIStore = create<UIStore>((set) => ({
   openDialog: (activeDialog, payload = null) => set({ activeDialog, dialogPayload: payload }),
   closeDialog: () => set({ activeDialog: null, dialogPayload: null }),
   setAmending: (amending) => set({ amending }),
-  setCherryPickInProgress: (cherryPickInProgress, oid = null) => set({ cherryPickInProgress, cherryPickOid: oid }),
   showContextMenu: (x, y, items) => set({ contextMenu: { x, y, items } }),
   hideContextMenu: () => set({ contextMenu: null }),
   setGraphSearch: (graphSearch) => set({ graphSearch }),

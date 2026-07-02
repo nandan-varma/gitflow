@@ -10,8 +10,6 @@ pub struct GraphNode {
     pub author_email: String,
     pub timestamp: i64,
     pub parents: Vec<String>,
-    pub lane: usize,
-    pub color_index: usize,
     pub is_merge: bool,
     pub refs: Vec<String>,
 }
@@ -20,16 +18,12 @@ pub struct GraphNode {
 pub struct GraphEdge {
     pub from_oid: String,
     pub to_oid: String,
-    pub from_lane: usize,
-    pub to_lane: usize,
-    pub color_index: usize,
 }
 
 #[derive(Debug, Serialize)]
 pub struct GraphPage {
     pub nodes: Vec<GraphNode>,
     pub edges: Vec<GraphEdge>,
-    pub total_lanes: usize,
     pub has_more: bool,
 }
 
@@ -73,13 +67,6 @@ pub fn get_commit_graph(
     let has_more = all_oids.len() > limit;
     let oids: Vec<git2::Oid> = all_oids.into_iter().take(limit).collect();
 
-    // Lane assignment — greedy free-list algorithm with O(1) HashMap lookup
-    // active_lanes: maps oid-string of "expected child" → lane index
-    let mut active_lanes: Vec<Option<(String, usize)>> = Vec::new(); // (child_oid, color)
-    let mut lane_map: HashMap<String, usize> = HashMap::new(); // child_oid → lane index
-    let mut free_lanes: Vec<usize> = Vec::new();
-    let mut next_color: usize = 0;
-
     let mut nodes: Vec<GraphNode> = Vec::new();
     let mut edges: Vec<GraphEdge> = Vec::new();
 
@@ -87,81 +74,21 @@ pub fn get_commit_graph(
         let commit = repo.find_commit(*oid)?;
         let oid_str = oid.to_string();
 
-        // Find which lane this commit belongs to — O(1) HashMap lookup
-        let assigned_lane = lane_map.remove(&oid_str);
-
-        let (lane, color_index) = if let Some(idx) = assigned_lane {
-            let (_, color) = active_lanes[idx].take().unwrap();
-            free_lanes.push(idx);
-            (idx, color)
-        } else {
-            // New branch starts here — claim a free lane or extend
-            let lane_idx = if let Some(free) = free_lanes.pop() {
-                free
-            } else {
-                let idx = active_lanes.len();
-                active_lanes.push(None);
-                idx
-            };
-            let color = next_color;
-            next_color += 1;
-            (lane_idx, color)
-        };
-
         let parents: Vec<String> = (0..commit.parent_count())
             .map(|i| commit.parent_id(i).unwrap().to_string())
             .collect();
 
-        // Register parent edges — first parent continues the lane, others start new lanes
-        for (i, parent_oid) in parents.iter().enumerate() {
-            // Check if parent is already being tracked by another lane (convergence) — O(1)
-            let existing_lane = lane_map.get(parent_oid).copied();
-
-            let (edge_lane, edge_color) = if let Some(existing_lane) = existing_lane {
-                // Parent already tracked — edge converges to that lane
-                let existing_color = active_lanes[existing_lane].as_ref().unwrap().1;
-                (existing_lane, existing_color)
-            } else if i == 0 {
-                // First parent, not yet tracked — continue in the same lane
-                if lane < active_lanes.len() {
-                    active_lanes[lane] = Some((parent_oid.clone(), color_index));
-                    lane_map.insert(parent_oid.clone(), lane);
-                    free_lanes.retain(|&fl| fl != lane);
-                }
-                (lane, color_index)
-            } else {
-                // Merge parent, not yet tracked — allocate a new lane
-                let merge_lane = if let Some(free) = free_lanes.pop() {
-                    free
-                } else {
-                    let idx = active_lanes.len();
-                    active_lanes.push(None);
-                    idx
-                };
-                let merge_color = next_color;
-                next_color += 1;
-                if merge_lane < active_lanes.len() {
-                    active_lanes[merge_lane] = Some((parent_oid.clone(), merge_color));
-                    lane_map.insert(parent_oid.clone(), merge_lane);
-                    free_lanes.retain(|&fl| fl != merge_lane);
-                }
-                (merge_lane, merge_color)
-            };
-
-            // Always emit edge; frontend draws stubs for off-page parents
+        for parent_oid in &parents {
             edges.push(GraphEdge {
                 from_oid: oid_str.clone(),
                 to_oid: parent_oid.clone(),
-                from_lane: lane,
-                to_lane: edge_lane,
-                color_index: edge_color,
             });
         }
 
         let author = commit.author();
         let refs = ref_map.get(&oid_str).cloned().unwrap_or_default();
 
-        // Deduplicate refs (non-consecutive too)
+        // Deduplicate refs
         let unique_refs: Vec<String> = {
             let set: std::collections::BTreeSet<String> = refs.into_iter().collect();
             set.iter().cloned().collect()
@@ -174,21 +101,14 @@ pub fn get_commit_graph(
             author_email: author.email().unwrap_or("").to_string(),
             timestamp: commit.time().seconds(),
             parents,
-            lane,
-            color_index: color_index % 12,
             is_merge: commit.parent_count() > 1,
             refs: unique_refs,
         });
     }
 
-    let total_lanes = active_lanes.iter().filter(|s| s.is_some()).count().max(
-        nodes.iter().map(|n| n.lane + 1).max().unwrap_or(1)
-    );
-
     Ok(GraphPage {
         nodes,
         edges,
-        total_lanes,
         has_more,
     })
 }
@@ -453,22 +373,16 @@ mod tests {
     }
 
     #[test]
-    fn test_graph_lanes_are_assigned() {
-        let repo = init_repo();
-        let result = get_commit_graph(&repo, 10, 0).unwrap();
-        for node in &result.nodes {
-            assert!(node.lane < result.total_lanes);
-        }
-        assert!(result.total_lanes >= 1);
-        cleanup(repo);
-    }
-
-    #[test]
     fn test_graph_has_edges_for_parent_relationships() {
         let repo = init_repo();
         let result = get_commit_graph(&repo, 10, 0).unwrap();
         // Should have 4 edges (5 commits, each pointing to parent except root)
         assert_eq!(result.edges.len(), 4);
+        // Edges have from/to
+        for edge in &result.edges {
+            assert!(!edge.from_oid.is_empty());
+            assert!(!edge.to_oid.is_empty());
+        }
         cleanup(repo);
     }
 

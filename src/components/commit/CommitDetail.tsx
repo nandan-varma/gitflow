@@ -107,7 +107,7 @@ export function CommitDetail() {
 
       {fileDiff && selectedPath && (
         <div style={{ flex: 1, overflow: "hidden" }}>
-          <DiffView diff={fileDiff} path={selectedPath} mode="workdir" />
+          <DiffView diff={fileDiff} path={selectedPath} mode="commit" />
         </div>
       )}
     </div>

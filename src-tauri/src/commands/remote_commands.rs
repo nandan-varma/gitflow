@@ -6,11 +6,16 @@ use crate::{error::AppError, state::AppState};
 pub struct RebaseStep {
     pub action: String,
     pub oid: String,
-    pub message: String,
 }
 
 pub fn truncate_stderr(stderr: &str) -> String {
-    stderr.lines().next().unwrap_or(stderr).to_string()
+    let lines: Vec<&str> = stderr.lines().filter(|l| !l.is_empty()).collect();
+    let joined = lines.iter().take(5).map(|l| l.to_string()).collect::<Vec<_>>().join("\n");
+    if joined.len() > 500 {
+        format!("{}…", &joined[..500])
+    } else {
+        joined
+    }
 }
 
 async fn run_git(args: &[&str], state: &AppState) -> Result<String, AppError> {
@@ -43,8 +48,6 @@ pub async fn cmd_git_push(
     state: State<'_, AppState>,
 ) -> Result<String, AppError> {
     let t = std::time::Instant::now();
-    // Always name the refspec — plain `git push` pushes the *current* branch,
-    // which is wrong when the UI targets another one.
     let r = if set_upstream {
         run_git(&["push", "--set-upstream", "origin", &branch], &state).await
     } else {
@@ -63,6 +66,24 @@ pub async fn cmd_git_pull(rebase: bool, state: State<'_, AppState>) -> Result<St
     r
 }
 
+pub(crate) fn build_rebase_todo(steps: &[RebaseStep]) -> Result<String, AppError> {
+    for s in steps {
+        if !matches!(s.action.as_str(), "pick" | "fixup" | "drop") {
+            return Err(AppError::InvalidArgument(format!("Unsupported rebase action: {}", s.action)));
+        }
+        if s.oid.len() < 7 || !s.oid.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err(AppError::InvalidArgument(format!("Invalid commit OID: {}", s.oid)));
+        }
+    }
+    let lines: Vec<String> = steps.iter()
+        .map(|s| {
+            let short = &s.oid[..7];
+            format!("{} {}", s.action, short)
+        })
+        .collect();
+    Ok(lines.join("\n"))
+}
+
 #[tauri::command]
 pub async fn cmd_interactive_rebase(
     base: String,
@@ -73,31 +94,12 @@ pub async fn cmd_interactive_rebase(
     let r: Result<String, AppError> = async {
         let path = state.repo_path.lock().unwrap().clone().ok_or(AppError::NoRepository)?;
 
-        let valid_actions = ["pick", "reword", "edit", "squash", "fixup", "exec", "break", "drop", "label", "reset", "merge"];
-        for s in &steps {
-            if !valid_actions.contains(&s.action.as_str()) {
-                return Err(AppError::InvalidArgument(format!("Invalid rebase action: {}", s.action)));
-            }
-        }
+        let todo_content = build_rebase_todo(&steps)?;
 
-        let todo_content = steps.iter()
-            .map(|s| {
-                let short = if s.oid.len() >= 7 { &s.oid[..7] } else { &s.oid };
-                let first_line = s.message.lines().next().unwrap_or("");
-                format!("{} {} {}", s.action, short, first_line)
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        let unique = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos();
-
-        let todo_path = std::env::temp_dir().join(format!("gitflow-rebase-todo-{unique}"));
-        let script_path = std::env::temp_dir().join(format!("gitflow-rebase-editor-{unique}.sh"));
+        let dir = tempfile::tempdir()?;
+        let todo_path = dir.path().join("todo");
+        let script_path = dir.path().join("editor.sh");
         std::fs::write(&todo_path, &todo_content)?;
-        // Pass path via env var to avoid shell injection through file path embedding
         let script = "#!/bin/sh\ncp -- \"${GITFLOW_TODO_FILE:?}\" \"$1\"\n";
         std::fs::write(&script_path, script)?;
 
@@ -112,15 +114,12 @@ pub async fn cmd_interactive_rebase(
         let out = tokio::process::Command::new("git")
             .args(["rebase", "-i", &base])
             .env("GIT_SEQUENCE_EDITOR", script_path.to_str().unwrap_or(""))
+            .env("GIT_EDITOR", "true")
             .env("GITFLOW_TODO_FILE", &todo_path)
             .current_dir(&path)
             .output()
             .await
             .map_err(|e| AppError::Other(format!("git not found: {e}")))?;
-
-        // Clean up temp files regardless of outcome
-        let _ = std::fs::remove_file(&todo_path);
-        let _ = std::fs::remove_file(&script_path);
 
         if out.status.success() {
             Ok(String::from_utf8_lossy(&out.stdout).to_string())
@@ -130,4 +129,68 @@ pub async fn cmd_interactive_rebase(
     }.await;
     state.log_command("cmd_interactive_rebase", t, &r);
     r
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn todo_formats_pick_lines() {
+        let steps = vec![
+            RebaseStep { action: "pick".into(), oid: "a1b2c3d4e5f6".into() },
+            RebaseStep { action: "fixup".into(), oid: "aabbccddee".into() },
+        ];
+        let todo = build_rebase_todo(&steps).unwrap();
+        assert_eq!(todo, "pick a1b2c3d\nfixup aabbccd");
+    }
+
+    #[test]
+    fn todo_rejects_bad_action() {
+        let steps = vec![
+            RebaseStep { action: "exec".into(), oid: "a1b2c3d4".into() },
+        ];
+        let err = build_rebase_todo(&steps).unwrap_err();
+        assert!(matches!(err, AppError::InvalidArgument(_)));
+        assert!(format!("{err}").contains("exec"));
+    }
+
+    #[test]
+    fn todo_rejects_bad_oid() {
+        let steps = vec![
+            RebaseStep { action: "pick".into(), oid: "not-hex!".into() },
+        ];
+        let err = build_rebase_todo(&steps).unwrap_err();
+        assert!(matches!(err, AppError::InvalidArgument(_)));
+    }
+
+    #[test]
+    fn todo_rejects_short_oid() {
+        let steps = vec![
+            RebaseStep { action: "pick".into(), oid: "abc123".into() },
+        ];
+        let err = build_rebase_todo(&steps).unwrap_err();
+        assert!(matches!(err, AppError::InvalidArgument(_)));
+    }
+
+    #[test]
+    fn truncate_stderr_empty() {
+        assert_eq!(truncate_stderr(""), "");
+    }
+
+    #[test]
+    fn truncate_stderr_multiple_lines() {
+        let input = "line1\n\nline2\nline3\nline4\nline5\nline6";
+        let result = truncate_stderr(input);
+        assert_eq!(result.lines().count(), 5);
+        assert!(!result.contains("line6"));
+    }
+
+    #[test]
+    fn truncate_stderr_short_lines_no_truncation() {
+        let input = "error: something went wrong\n  at src/foo.rs:42";
+        let result = truncate_stderr(input);
+        assert!(result.len() <= 500);
+        assert!(result.contains("error:"));
+    }
 }

@@ -4,7 +4,6 @@ import { Skeleton } from "../ui/Skeleton";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { ipc } from "../../lib/ipc";
 import { queryClient, queryKeys } from "../../lib/queryClient";
-import { useUIStore } from "../../store/uiStore";
 import type { ConflictDetail } from "../../types/git";
 
 export function ConflictEditor() {
@@ -13,14 +12,7 @@ export function ConflictEditor() {
     queryFn: () => ipc.getConflicts(),
   });
 
-  const { cherryPickInProgress, setCherryPickInProgress } = useUIStore();
   const [activeConflictPath, setActiveConflictPath] = useState<string | null>(null);
-
-  React.useEffect(() => {
-    if (!conflictsLoading && conflicts.length === 0 && cherryPickInProgress) {
-      setCherryPickInProgress(false, null);
-    }
-  }, [conflicts, conflictsLoading, cherryPickInProgress, setCherryPickInProgress]);
 
   React.useEffect(() => {
     if (!activeConflictPath && conflicts.length > 0) {

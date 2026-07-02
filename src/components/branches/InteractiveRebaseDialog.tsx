@@ -1,10 +1,12 @@
 import React, { useMemo, useState } from "react";
 import { useUIStore } from "../../store/uiStore";
 import { useCommitGraph } from "../../hooks/useCommitGraph";
+import { useRepoInfo } from "../../hooks/useRepository";
 import { ipc, toErrMsg } from "../../lib/ipc";
 import { queryClient } from "../../lib/queryClient";
 import { formatRelativeTime } from "../../lib/diffParser";
-import { GripVertical } from "lucide-react";
+import { GripVertical, Info } from "lucide-react";
+import type { GraphNode } from "../../types/graph";
 
 type Action = "pick" | "fixup" | "drop";
 
@@ -25,11 +27,35 @@ const ACTION_COLOR: Record<Action, string> = {
 export function InteractiveRebaseDialog() {
   const { closeDialog, setActiveView } = useUIStore();
   const { data } = useCommitGraph();
+  const { data: repoInfo } = useRepoInfo();
   const [count, setCount] = useState(5);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  const sourceNodes = useMemo(() => data?.pages[0]?.nodes ?? [], [data]);
+  const allNodes = useMemo(() => data?.pages.flatMap((p) => p.nodes) ?? [], [data]);
+  const byOid = useMemo(() => new Map(allNodes.map((n) => [n.oid, n])), [allNodes]);
+  const headOid = repoInfo?.head_oid;
+  const maxReachable = useMemo(() => {
+    let cur = headOid ? byOid.get(headOid) : undefined;
+    let n = 0;
+    while (cur) {
+      n++;
+      cur = cur.parents.length ? byOid.get(cur.parents[0]) : undefined;
+    }
+    return n;
+  }, [byOid, headOid]);
+
+  const sourceNodes = useMemo(() => {
+    const out: GraphNode[] = [];
+    let cur = headOid ? byOid.get(headOid) : undefined;
+    while (cur && out.length < 20) {
+      out.push(cur);
+      cur = cur.parents.length ? byOid.get(cur.parents[0]) : undefined;
+    }
+    return out;
+  }, [byOid, headOid]);
+
+  const availableCounts = [3, 5, 10, 15, 20].filter((n) => n <= maxReachable);
 
   const [steps, setSteps] = useState<Step[]>(() =>
     sourceNodes.slice(0, count).map((n) => ({
@@ -66,7 +92,7 @@ export function InteractiveRebaseDialog() {
       // steps are newest-first in UI; git rebase -i wants oldest-first
       const ordered = [...steps].reverse();
       const base = `HEAD~${steps.length}`;
-      await ipc.interactiveRebase(base, ordered.map((s) => ({ action: s.action, oid: s.oid, message: s.message })));
+      await ipc.interactiveRebase(base, ordered.map((s) => ({ action: s.action, oid: s.oid })));
       queryClient.invalidateQueries({ queryKey: ["graph"] });
       queryClient.invalidateQueries({ queryKey: ["branches"] });
       closeDialog();
@@ -83,6 +109,8 @@ export function InteractiveRebaseDialog() {
     }
   };
 
+  const hasMerge = steps.some((s) => byOid.get(s.oid)?.is_merge);
+
   return (
     <div className="dialog-overlay" onClick={closeDialog}>
       <div className="dialog-card" style={{ width: 540, maxHeight: "80vh", display: "flex", flexDirection: "column" }} onClick={(e) => e.stopPropagation()}>
@@ -95,7 +123,7 @@ export function InteractiveRebaseDialog() {
             onChange={(e) => handleCountChange(Number(e.target.value))}
             style={{ fontSize: 12, padding: "2px 6px", background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: 4, color: "var(--text-primary)" }}
           >
-            {[3, 5, 10, 15, 20].map((n) => <option key={n} value={n}>{n}</option>)}
+            {availableCounts.map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
           <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>commits</span>
           <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-muted)" }}>
@@ -139,10 +167,16 @@ export function InteractiveRebaseDialog() {
 
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <button onClick={closeDialog} style={{ padding: "5px 12px", borderRadius: 4, background: "var(--bg-elevated)", color: "var(--text-secondary)", border: "1px solid var(--border)", fontSize: 12 }}>Cancel</button>
+          {hasMerge && (
+            <div style={{ fontSize: 11, color: "var(--warning)", display: "flex", alignItems: "center", gap: 4, marginRight: "auto" }}>
+              <Info size={12} />
+              Cannot rebase across merge commits
+            </div>
+          )}
           <button
             onClick={handleRebase}
-            disabled={pending}
-            style={{ padding: "5px 12px", borderRadius: 4, background: "var(--accent)", color: "#fff", fontSize: 12, fontWeight: 500 }}
+            disabled={pending || hasMerge}
+            style={{ padding: "5px 12px", borderRadius: 4, background: "var(--accent)", color: "#fff", fontSize: 12, fontWeight: 500, opacity: (pending || hasMerge) ? 0.5 : 1 }}
           >
             {pending ? "Rebasing…" : "Start Rebase"}
           </button>

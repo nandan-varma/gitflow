@@ -152,7 +152,7 @@ export const ipc = {
   gitPull: (rebase = true) =>
     invoke<string>("cmd_git_pull", { rebase }),
 
-  interactiveRebase: (base: string, steps: { action: string; oid: string; message: string }[]) =>
+  interactiveRebase: (base: string, steps: { action: string; oid: string }[]) =>
     invoke<string>("cmd_interactive_rebase", { base, steps }),
 
   // GitHub PRs (gh CLI)
