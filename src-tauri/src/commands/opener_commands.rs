@@ -1,15 +1,31 @@
+use std::path::Path;
 use tauri::State;
-use crate::{error::AppError, state::AppState};
+use crate::{error::AppError, state::AppState, commands::remote_commands::truncate_stderr};
 
 fn repo_path(state: &AppState) -> Result<std::path::PathBuf, AppError> {
     state.repo_path.lock().unwrap().clone().ok_or(AppError::NoRepository)
 }
 
+fn resolve_path(base: &Path, user_path: &str) -> Result<std::path::PathBuf, AppError> {
+    let joined = if user_path.is_empty() {
+        base.to_path_buf()
+    } else {
+        base.join(user_path)
+    };
+    let canonical = joined.canonicalize().map_err(|_| {
+        AppError::InvalidArgument(format!("Path does not exist: {user_path}"))
+    })?;
+    if !canonical.starts_with(base) {
+        return Err(AppError::InvalidArgument("Path is outside repository".into()));
+    }
+    Ok(canonical)
+}
+
 #[tauri::command]
-pub async fn cmd_open_in_vscode(path: String, state: State<'_, AppState>) -> Result<(), AppError> {
+pub async fn cmd_open_in_vscode(user_path: String, state: State<'_, AppState>) -> Result<(), AppError> {
     let t = std::time::Instant::now();
     let base = repo_path(&state)?;
-    let full = if path.is_empty() { base.clone() } else { base.join(&path) };
+    let full = resolve_path(&base, &user_path)?;
     let r: Result<(), AppError> = async {
         let out = tokio::process::Command::new("code")
             .arg(&full)
@@ -54,12 +70,11 @@ fn reveal_in_finder(full: &std::path::Path) -> std::process::Output {
 }
 
 #[tauri::command]
-pub async fn cmd_reveal_in_finder(path: String, state: State<'_, AppState>) -> Result<(), AppError> {
+pub async fn cmd_reveal_in_finder(user_path: String, state: State<'_, AppState>) -> Result<(), AppError> {
     let t = std::time::Instant::now();
     let base = repo_path(&state)?;
-    let full = if path.is_empty() { base.clone() } else { base.join(&path) };
+    let full = resolve_path(&base, &user_path)?;
     let r: Result<(), AppError> = async {
-        // Use spawn_blocking since std::process::Command is sync
         let full_clone = full.clone();
         let out = tokio::task::spawn_blocking(move || reveal_in_finder(&full_clone))
             .await
@@ -108,14 +123,14 @@ fn open_terminal(dir: &std::path::Path) -> std::process::Output {
 }
 
 #[tauri::command]
-pub async fn cmd_open_in_terminal(path: String, state: State<'_, AppState>) -> Result<(), AppError> {
+pub async fn cmd_open_in_terminal(user_path: String, state: State<'_, AppState>) -> Result<(), AppError> {
     let t = std::time::Instant::now();
     let base = repo_path(&state)?;
-    let dir = if path.is_empty() {
-        base.clone()
+    let resolved = resolve_path(&base, &user_path)?;
+    let dir = if resolved.is_dir() {
+        resolved
     } else {
-        let full = base.join(&path);
-        if full.is_dir() { full } else { full.parent().map(|p| p.to_path_buf()).unwrap_or(base) }
+        resolved.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| base.clone())
     };
     let r: Result<(), AppError> = async {
         let dir_clone = dir.clone();
@@ -129,6 +144,4 @@ pub async fn cmd_open_in_terminal(path: String, state: State<'_, AppState>) -> R
     r
 }
 
-fn truncate_stderr(stderr: &str) -> String {
-    stderr.lines().next().unwrap_or(stderr).to_string()
-}
+

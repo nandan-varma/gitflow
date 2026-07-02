@@ -36,7 +36,7 @@ pub fn unstage_file(repo: &git2::Repository, path: &str) -> Result<(), AppError>
                 uid: 0, gid: 0, file_size: 0,
                 id: entry.id(),
                 flags: 0, flags_extended: 0,
-                path: path.as_bytes().to_vec(),
+                path: path.as_bytes().iter().copied().chain(std::iter::once(0)).collect(),
             };
             index.add(&ie)?;
         }

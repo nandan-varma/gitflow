@@ -18,7 +18,7 @@ export function CommitNode({ node, selected, onSelect, laneOffset }: Props) {
   const x = laneX(node.lane);
   const midY = ROW_HEIGHT / 2;
   const color = laneColor(node.color_index);
-  const { showContextMenu, openDialog, openBlame } = useUIStore();
+  const { showContextMenu, openDialog, openBlame, setActiveView, setCherryPickInProgress } = useUIStore();
 
   return (
     <div
@@ -33,10 +33,15 @@ export function CommitNode({ node, selected, onSelect, laneOffset }: Props) {
           { label: "Create Tag Here…", action: () => openDialog("tag-create", node.oid) },
           { label: "Cherry-pick onto Current Branch", action: async () => {
             try {
-              await ipc.cherryPick(node.oid);
-              queryClient.invalidateQueries({ queryKey: ["graph"] });
-              queryClient.invalidateQueries({ queryKey: ["status"] });
-              queryClient.invalidateQueries({ queryKey: ["branches"] });
+              const outcome = await ipc.cherryPick(node.oid);
+              if (outcome.type === "Conflicts") {
+                setCherryPickInProgress(true, node.oid);
+                setActiveView("conflicts");
+              } else {
+                queryClient.invalidateQueries({ queryKey: ["graph"] });
+                queryClient.invalidateQueries({ queryKey: ["status"] });
+                queryClient.invalidateQueries({ queryKey: ["branches"] });
+              }
             } catch (e) { alert(`Cherry-pick failed: ${toErrMsg(e)}`); }
           }},
           "separator",

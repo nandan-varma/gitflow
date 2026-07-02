@@ -29,8 +29,6 @@ export function DiffHunk({ hunk, path, mode }: Props) {
   const selectedPlusKeys = lineKeys.filter((k, i) => selectedLines.has(k) && hunk.lines[i].origin === "+");
   const hasSelectedPlus = selectedPlusKeys.length > 0;
 
-  const allSelected = hunkLineKeys.every((k) => selectedLines.has(k));
-
   const handleStageHunk = async () => {
     try {
       if (mode === "workdir") {

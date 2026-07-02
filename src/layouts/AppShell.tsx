@@ -26,6 +26,8 @@ import { useRepoChangeListener, useRepoInfo } from "../hooks/useRepository";
 import { useCommandLogStore } from "../store/commandLogStore";
 import { useIpcEvent } from "../hooks/useIpcEvent";
 import { useContinueRebase, useAbortRebase } from "../hooks/useBranches";
+import { ipc, toErrMsg } from "../lib/ipc";
+import { queryClient } from "../lib/queryClient";
 import { useSettingsStore } from "../store/settingsStore";
 import { check as checkUpdate } from "@tauri-apps/plugin-updater";
 import type { CommandLogEntry } from "../types/git";
@@ -61,6 +63,72 @@ function RebaseActionBar() {
         style={{ padding: "4px 10px", fontSize: 11, borderRadius: 4, background: "var(--accent)", color: "#fff", fontWeight: 500 }}
       >
         {continueRebase.isPending ? "Continuing…" : "Continue Rebase"}
+      </button>
+    </div>
+  );
+}
+
+function CherryPickActionBar() {
+  const { setActiveView, setCherryPickInProgress, cherryPickOid } = useUIStore();
+  const [aborting, setAborting] = useState(false);
+  const [continuing, setContinuing] = useState(false);
+
+  const handleAbort = async () => {
+    setAborting(true);
+    try {
+      await ipc.cherryPickAbort();
+      setCherryPickInProgress(false);
+      queryClient.invalidateQueries({ queryKey: ["status"] });
+      queryClient.invalidateQueries({ queryKey: ["graph"] });
+      queryClient.invalidateQueries({ queryKey: ["conflicts"] });
+      setActiveView("graph");
+    } catch {
+      setAborting(false);
+    }
+  };
+
+  const handleContinue = async () => {
+    if (!cherryPickOid) return;
+    setContinuing(true);
+    try {
+      const outcome = await ipc.cherryPickContinue(cherryPickOid);
+      setCherryPickInProgress(false);
+      queryClient.invalidateQueries({ queryKey: ["graph"] });
+      queryClient.invalidateQueries({ queryKey: ["status"] });
+      queryClient.invalidateQueries({ queryKey: ["branches"] });
+      if (outcome.type === "Success") setActiveView("graph");
+    } catch (e) {
+      setContinuing(false);
+      alert(`Cherry-pick continue failed: ${toErrMsg(e)}`);
+    }
+  };
+
+  return (
+    <div style={{
+      padding: "6px 12px",
+      background: "rgba(255,152,0,0.08)",
+      borderTop: "1px solid var(--border)",
+      display: "flex",
+      gap: 8,
+      alignItems: "center",
+      flexShrink: 0,
+    }}>
+      <span style={{ fontSize: 11, color: "var(--warning)", flex: 1 }}>
+        Cherry-pick in progress — resolve conflicts, then continue, or abort
+      </span>
+      <button
+        onClick={handleAbort}
+        disabled={aborting}
+        style={{ padding: "4px 10px", fontSize: 11, borderRadius: 4, border: "1px solid var(--border)", color: "var(--text-secondary)", background: "var(--bg-elevated)" }}
+      >
+        {aborting ? "Aborting…" : "Abort"}
+      </button>
+      <button
+        onClick={handleContinue}
+        disabled={continuing}
+        style={{ padding: "4px 10px", fontSize: 11, borderRadius: 4, background: "var(--accent)", color: "#fff", fontWeight: 500 }}
+      >
+        {continuing ? "Continuing…" : "Continue Cherry-Pick"}
       </button>
     </div>
   );
@@ -103,6 +171,8 @@ export function AppShell() {
   } = useUIStore();
   const pushEntry = useCommandLogStore((s) => s.pushEntry);
   const { data: repoInfo } = useRepoInfo();
+
+  const cherryPickInProgress = useUIStore((s) => s.cherryPickInProgress);
 
   useRepoChangeListener();
   useIpcEvent<CommandLogEntry>("command-log", pushEntry);
@@ -177,6 +247,7 @@ export function AppShell() {
             <ErrorBoundary label="Conflict editor error">
               <ConflictEditor />
               {isRebasing && <RebaseActionBar />}
+              {cherryPickInProgress && <CherryPickActionBar />}
             </ErrorBoundary>
           )}
           {activeView === "stash" && (

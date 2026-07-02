@@ -38,6 +38,7 @@ export function useStashApply() {
     mutationFn: (index: number) => ipc.stashApply(index),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["status"] });
+      queryClient.invalidateQueries({ queryKey: ["stashes"] });
     },
   });
 }

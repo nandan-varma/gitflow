@@ -15,6 +15,13 @@ type UpdateState =
   | { status: "ready"; version: string }
   | { status: "error"; message: string };
 
+const AI_PRESETS = [
+  { name: "OpenAI", url: "https://api.openai.com/v1" },
+  { name: "Anthropic", url: "https://api.anthropic.com/v1" },
+  { name: "OpenRouter", url: "https://openrouter.ai/api/v1" },
+  { name: "Ollama", url: "http://localhost:11434/v1" },
+];
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 32 }}>
@@ -62,7 +69,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 }
 
 export function SettingsPage() {
-  const { defaultDiffMode, defaultBranchName, checkUpdatesOnStartup, patch } = useSettingsStore();
+  const { defaultDiffMode, defaultBranchName, checkUpdatesOnStartup, aiBaseUrl, aiModel, aiApiKey, patch } = useSettingsStore();
   const { openDialog } = useUIStore();
   const [updateState, setUpdateState] = useState<UpdateState>({ status: "idle" });
 
@@ -147,6 +154,47 @@ export function SettingsPage() {
             onChange={(e) => patch({ defaultBranchName: e.target.value })}
             style={{ width: 100, textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 12 }}
             placeholder="main"
+          />
+        </Row>
+      </Section>
+
+      <Section title="AI Assistant">
+        <Row label="Provider" description="Pre-fills the base URL for common OpenAI-compatible APIs">
+          <select
+            value={AI_PRESETS.find((p) => p.url === aiBaseUrl)?.name ?? "Custom"}
+            onChange={(e) => {
+              const preset = AI_PRESETS.find((p) => p.name === e.target.value);
+              if (preset) patch({ aiBaseUrl: preset.url });
+            }}
+            style={{ fontSize: 12, padding: "4px 8px", background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 4, color: "var(--text-primary)" }}
+          >
+            {AI_PRESETS.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+            <option value="Custom">Custom</option>
+          </select>
+        </Row>
+        <Row label="Base URL">
+          <input
+            value={aiBaseUrl}
+            onChange={(e) => patch({ aiBaseUrl: e.target.value })}
+            style={{ width: 240, fontFamily: "var(--font-mono)", fontSize: 11 }}
+            placeholder="https://api.openai.com/v1"
+          />
+        </Row>
+        <Row label="Model" description="Model ID as the provider expects it">
+          <input
+            value={aiModel}
+            onChange={(e) => patch({ aiModel: e.target.value })}
+            style={{ width: 180, fontFamily: "var(--font-mono)", fontSize: 12 }}
+            placeholder="gpt-5.2 / claude-opus-4-8"
+          />
+        </Row>
+        <Row label="API key" description="Stored locally on this machine">
+          <input
+            type="password"
+            value={aiApiKey}
+            onChange={(e) => patch({ aiApiKey: e.target.value })}
+            style={{ width: 240, fontFamily: "var(--font-mono)", fontSize: 12 }}
+            placeholder="sk-…"
           />
         </Row>
       </Section>

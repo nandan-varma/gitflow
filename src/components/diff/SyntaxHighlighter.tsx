@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import type { Highlighter } from "shiki";
 
 let highlighterPromise: Promise<Highlighter> | null = null;
@@ -54,6 +54,13 @@ export function SyntaxHighlighter({ code, path }: Props) {
     return () => { cancelled = true; };
   }, [code, path]);
 
+  const sanitized = useMemo(() => {
+    if (!html) return null;
+    return html
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/\bon\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+  }, [html]);
+
   if (!html) {
     return (
       <pre
@@ -71,7 +78,7 @@ export function SyntaxHighlighter({ code, path }: Props) {
 
   return (
     <div
-      dangerouslySetInnerHTML={{ __html: html }}
+      dangerouslySetInnerHTML={{ __html: sanitized ?? "" }}
       style={{ fontFamily: "var(--font-mono)", fontSize: 12, lineHeight: 1.5 }}
     />
   );

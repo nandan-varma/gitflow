@@ -24,6 +24,7 @@
     "clsx": "^2",
     "immer": "^10",
     "lucide-react": "^0.400.0",
+    "openai": "^6.45.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "shiki": "^1",

@@ -7,12 +7,19 @@ import { useUIStore } from "../../store/uiStore";
 import type { ConflictDetail } from "../../types/git";
 
 export function ConflictEditor() {
-  const { data: conflicts = [] } = useQuery({
+  const { data: conflicts = [], isLoading: conflictsLoading } = useQuery({
     queryKey: queryKeys.conflicts,
     queryFn: () => ipc.getConflicts(),
   });
 
+  const { cherryPickInProgress, setCherryPickInProgress } = useUIStore();
   const [activeConflictPath, setActiveConflictPath] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!conflictsLoading && conflicts.length === 0 && cherryPickInProgress) {
+      setCherryPickInProgress(false, null);
+    }
+  }, [conflicts, conflictsLoading, cherryPickInProgress, setCherryPickInProgress]);
 
   React.useEffect(() => {
     if (!activeConflictPath && conflicts.length > 0) {
@@ -33,6 +40,7 @@ export function ConflictEditor() {
       ipc.resolveConflict(path, resolution),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["conflicts"] });
+      queryClient.invalidateQueries({ queryKey: ["conflict"] });
       queryClient.invalidateQueries({ queryKey: ["status"] });
     },
   });

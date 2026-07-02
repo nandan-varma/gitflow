@@ -3,13 +3,11 @@ import { GitCommit, Layers } from "lucide-react";
 import { useUIStore } from "../../store/uiStore";
 import { useFileStatus } from "../../hooks/useFileStatus";
 import { useRepoStore } from "../../store/repoStore";
-import { useRepoInfo } from "../../hooks/useRepository";
 
 export function CommitBar() {
   const { setActiveView, activeView } = useUIStore();
   const { data: status = [] } = useFileStatus();
   const { currentRepoPath } = useRepoStore();
-  const { data: repoInfo } = useRepoInfo();
 
   const staged = status.filter((f) => f.staged).length;
   const unstaged = status.filter((f) => f.unstaged && !f.staged).length;

@@ -31,24 +31,24 @@ impl AppState {
     }
 
     pub fn set_repo_path(&self, path: PathBuf) {
-        *self.repo_path.lock().unwrap() = Some(path);
+        *self.repo_path.lock().expect("repo_path mutex poisoned") = Some(path);
     }
 
     pub fn open_repo(&self) -> Result<git2::Repository, crate::error::AppError> {
-        let guard = self.repo_path.lock().unwrap();
+        let guard = self.repo_path.lock().expect("repo_path mutex poisoned");
         let path = guard.as_ref().ok_or(crate::error::AppError::NoRepository)?;
-        Ok(git2::Repository::open(path)?)
+        Ok(git2::Repository::discover(path)?)
     }
 
     pub fn stop_watcher(&self) {
-        if let Some(stop) = self.watch_stop.lock().unwrap().take() {
+        if let Some(stop) = self.watch_stop.lock().expect("watch_stop mutex poisoned").take() {
             stop.store(true, Ordering::Relaxed);
         }
     }
 
     pub fn set_watcher(&self, stop: Arc<AtomicBool>) {
         self.stop_watcher();
-        *self.watch_stop.lock().unwrap() = Some(stop);
+        *self.watch_stop.lock().expect("watch_stop mutex poisoned") = Some(stop);
     }
 
     pub fn log_command<T, E: std::fmt::Display>(

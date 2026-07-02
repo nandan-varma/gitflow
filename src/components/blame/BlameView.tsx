@@ -4,19 +4,6 @@ import { useBlame } from "../../hooks/useDiff";
 import { formatRelativeTime } from "../../lib/diffParser";
 import { ArrowLeft } from "lucide-react";
 
-// Group consecutive lines with same oid for visual grouping
-function useBlameGroups(lines: { oid: string }[]) {
-  return useMemo(() => {
-    const groups = new Map<number, boolean>(); // line_no → is first in group
-    let lastOid = "";
-    for (const l of lines) {
-      groups.set(l.oid === lastOid ? 0 : 1, true); // unused, just track boundary
-      lastOid = l.oid;
-    }
-    return groups;
-  }, [lines]);
-}
-
 export function BlameView() {
   const { blameFilePath, setActiveView } = useUIStore();
   const { data: lines = [], isLoading } = useBlame(blameFilePath);

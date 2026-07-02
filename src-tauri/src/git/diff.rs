@@ -91,7 +91,13 @@ fn diff_to_file_diff(diff: &git2::Diff, requested_path: &str) -> Result<FileDiff
     )?;
 
     drop((e_file, e_bin, e_hunk, e_line));
-    let all_events = Rc::try_unwrap(events).unwrap().into_inner();
+    let all_events = match Rc::try_unwrap(events) {
+        Ok(inner) => inner.into_inner(),
+        Err(_) => {
+            log::error!("diff_to_file_diff: Rc<RefCell> still has references after drop");
+            Vec::new()
+        },
+    };
 
     let mut hunks: Vec<DiffHunk> = Vec::new();
     let mut is_binary = false;

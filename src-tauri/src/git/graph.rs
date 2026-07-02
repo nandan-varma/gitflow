@@ -38,18 +38,19 @@ pub fn get_commit_graph(
     limit: usize,
     offset: usize,
 ) -> Result<GraphPage, AppError> {
-    // Collect all refs (branches + tags) for labeling
+    // Collect refs (local branches and tags) for labeling — skip remote-tracking refs
     let mut ref_map: HashMap<String, Vec<String>> = HashMap::new();
     for reference in repo.references()? {
         let r = reference?;
-        if let Some(target) = r.target() {
-            let name = r.shorthand().unwrap_or("?").to_string();
-            ref_map.entry(target.to_string()).or_default().push(name);
+        let name = r.name().unwrap_or("");
+        // Only label from local branches and tags
+        if !name.starts_with("refs/heads/") && !name.starts_with("refs/tags/") {
+            continue;
         }
-        // Also follow peeled tags to the commit
+        let shorthand = r.shorthand().unwrap_or("?").to_string();
+        // Peel to the commit object for labeling
         if let Ok(peeled) = r.peel(git2::ObjectType::Commit) {
-            let name = r.shorthand().unwrap_or("?").to_string();
-            ref_map.entry(peeled.id().to_string()).or_default().push(name);
+            ref_map.entry(peeled.id().to_string()).or_default().push(shorthand);
         }
     }
 
@@ -72,9 +73,10 @@ pub fn get_commit_graph(
     let has_more = all_oids.len() > limit;
     let oids: Vec<git2::Oid> = all_oids.into_iter().take(limit).collect();
 
-    // Lane assignment — greedy free-list algorithm
+    // Lane assignment — greedy free-list algorithm with O(1) HashMap lookup
     // active_lanes: maps oid-string of "expected child" → lane index
     let mut active_lanes: Vec<Option<(String, usize)>> = Vec::new(); // (child_oid, color)
+    let mut lane_map: HashMap<String, usize> = HashMap::new(); // child_oid → lane index
     let mut free_lanes: Vec<usize> = Vec::new();
     let mut next_color: usize = 0;
 
@@ -85,10 +87,8 @@ pub fn get_commit_graph(
         let commit = repo.find_commit(*oid)?;
         let oid_str = oid.to_string();
 
-        // Find which lane this commit belongs to (if any active lane expects it)
-        let assigned_lane = active_lanes
-            .iter()
-            .position(|slot| slot.as_ref().is_some_and(|(co, _)| co == &oid_str));
+        // Find which lane this commit belongs to — O(1) HashMap lookup
+        let assigned_lane = lane_map.remove(&oid_str);
 
         let (lane, color_index) = if let Some(idx) = assigned_lane {
             let (_, color) = active_lanes[idx].take().unwrap();
@@ -114,12 +114,10 @@ pub fn get_commit_graph(
 
         // Register parent edges — first parent continues the lane, others start new lanes
         for (i, parent_oid) in parents.iter().enumerate() {
-            // Check if parent is already being tracked by another lane (convergence)
-            let existing = active_lanes
-                .iter()
-                .position(|s| s.as_ref().is_some_and(|(co, _)| co == parent_oid));
+            // Check if parent is already being tracked by another lane (convergence) — O(1)
+            let existing_lane = lane_map.get(parent_oid).copied();
 
-            let (edge_lane, edge_color) = if let Some(existing_lane) = existing {
+            let (edge_lane, edge_color) = if let Some(existing_lane) = existing_lane {
                 // Parent already tracked — edge converges to that lane
                 let existing_color = active_lanes[existing_lane].as_ref().unwrap().1;
                 (existing_lane, existing_color)
@@ -127,6 +125,7 @@ pub fn get_commit_graph(
                 // First parent, not yet tracked — continue in the same lane
                 if lane < active_lanes.len() {
                     active_lanes[lane] = Some((parent_oid.clone(), color_index));
+                    lane_map.insert(parent_oid.clone(), lane);
                     free_lanes.retain(|&fl| fl != lane);
                 }
                 (lane, color_index)
@@ -143,6 +142,7 @@ pub fn get_commit_graph(
                 next_color += 1;
                 if merge_lane < active_lanes.len() {
                     active_lanes[merge_lane] = Some((parent_oid.clone(), merge_color));
+                    lane_map.insert(parent_oid.clone(), merge_lane);
                     free_lanes.retain(|&fl| fl != merge_lane);
                 }
                 (merge_lane, merge_color)
@@ -280,7 +280,13 @@ pub fn get_commit_detail(repo: &git2::Repository, oid_str: &str) -> Result<Commi
     )?;
 
     drop((cf_file, cf_line));
-    let changed_files = Rc::try_unwrap(changed_files).unwrap().into_inner();
+    let changed_files = match Rc::try_unwrap(changed_files) {
+        Ok(inner) => inner.into_inner(),
+        Err(_) => {
+            log::error!("get_commit_detail: Rc<RefCell> still has references after drop");
+            Vec::new()
+        },
+    };
 
     let author = commit.author();
     let committer = commit.committer();
@@ -364,4 +370,154 @@ pub fn get_file_history(
     }
 
     Ok(entries)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    static COUNTER: AtomicU32 = AtomicU32::new(0);
+
+    fn init_repo() -> git2::Repository {
+        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let tmp = std::env::temp_dir().join(format!("test_graph_{}_{}", std::process::id(), n));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let repo = git2::Repository::init(&tmp).unwrap();
+
+        let sig = repo.signature().unwrap();
+        let tree_oid = {
+            let mut index = repo.index().unwrap();
+            index.write_tree().unwrap()
+        };
+        let empty_tree = repo.find_tree(tree_oid).unwrap();
+
+        // Create 3 linear commits on main
+        let mut parent: Option<git2::Oid> = None;
+        let mut oids = Vec::new();
+        for i in 0..3 {
+            let msg = format!("commit {i}");
+            let commit = parent.and_then(|oid| repo.find_commit(oid).ok());
+            let parents: Vec<&git2::Commit> = commit.iter().collect();
+            let oid = repo.commit(
+                Some("refs/heads/main"),
+                &sig, &sig, &msg, &empty_tree, &parents,
+            ).unwrap();
+            oids.push(oid);
+            parent = Some(oid);
+        }
+
+        // Create a branch from commit 1 and add 2 more commits
+        {
+            let branch_commit = repo.find_commit(oids[1]).unwrap();
+            repo.branch("feature", &branch_commit, false).unwrap();
+        }
+        parent = Some(oids[1]);
+        for i in 0..2 {
+            let msg = format!("feature commit {i}");
+            let commit = parent.and_then(|oid| repo.find_commit(oid).ok());
+            let parents: Vec<&git2::Commit> = commit.iter().collect();
+            let oid = repo.commit(
+                Some("refs/heads/feature"),
+                &sig, &sig, &msg, &empty_tree, &parents,
+            ).unwrap();
+            oids.push(oid);
+            parent = Some(oid);
+        }
+
+        // Drop empty_tree before returning repo to avoid borrow conflict
+        drop(empty_tree);
+        repo
+    }
+
+    fn cleanup(repo: git2::Repository) {
+        let path = repo.path().parent().unwrap().to_path_buf();
+        drop(repo);
+        let _ = std::fs::remove_dir_all(&path);
+    }
+
+    #[test]
+    fn test_graph_returns_all_commits() {
+        let repo = init_repo();
+        let result = get_commit_graph(&repo, 10, 0).unwrap();
+        assert_eq!(result.nodes.len(), 5);
+        // All 5 commits present regardless of order
+        let summaries: Vec<&str> = result.nodes.iter().map(|n| n.summary.as_str()).collect();
+        assert!(summaries.contains(&"commit 0"));
+        assert!(summaries.contains(&"commit 1"));
+        assert!(summaries.contains(&"commit 2"));
+        assert!(summaries.contains(&"feature commit 0"));
+        assert!(summaries.contains(&"feature commit 1"));
+        cleanup(repo);
+    }
+
+    #[test]
+    fn test_graph_lanes_are_assigned() {
+        let repo = init_repo();
+        let result = get_commit_graph(&repo, 10, 0).unwrap();
+        for node in &result.nodes {
+            assert!(node.lane < result.total_lanes);
+        }
+        assert!(result.total_lanes >= 1);
+        cleanup(repo);
+    }
+
+    #[test]
+    fn test_graph_has_edges_for_parent_relationships() {
+        let repo = init_repo();
+        let result = get_commit_graph(&repo, 10, 0).unwrap();
+        // Should have 4 edges (5 commits, each pointing to parent except root)
+        assert_eq!(result.edges.len(), 4);
+        cleanup(repo);
+    }
+
+    #[test]
+    fn test_graph_refs_include_branch_names() {
+        let repo = init_repo();
+        let result = get_commit_graph(&repo, 10, 0).unwrap();
+        let main_refs: Vec<&str> = result.nodes[0].refs.iter().map(|r| r.as_str()).collect();
+        // The most recent commit should be on a branch
+        assert!(main_refs.contains(&"feature") || main_refs.contains(&"main"));
+        cleanup(repo);
+    }
+
+    #[test]
+    fn test_graph_pagination_has_more() {
+        let repo = init_repo();
+        let result = get_commit_graph(&repo, 3, 0).unwrap();
+        assert_eq!(result.nodes.len(), 3);
+        assert!(result.has_more);
+        cleanup(repo);
+    }
+
+    #[test]
+    fn test_graph_pagination_offset() {
+        let repo = init_repo();
+        let result = get_commit_graph(&repo, 10, 5).unwrap();
+        // With 5 commits total and offset 5, should have 0 commits
+        assert_eq!(result.nodes.len(), 0);
+        assert!(!result.has_more);
+        cleanup(repo);
+    }
+
+    #[test]
+    fn test_get_commit_detail_returns_correct_data() {
+        let repo = init_repo();
+        let result = get_commit_graph(&repo, 10, 0).unwrap();
+        let first_oid = &result.nodes[result.nodes.len() - 1].oid; // oldest commit
+        let detail = get_commit_detail(&repo, first_oid).unwrap();
+        assert_eq!(detail.oid, *first_oid);
+        assert!(detail.summary.contains("commit 0"));
+        assert!(detail.parents.is_empty()); // root commit
+        cleanup(repo);
+    }
+
+    #[test]
+    fn test_file_history_empty_for_nonexistent_path() {
+        let repo = init_repo();
+        let result = get_file_history(&repo, "nonexistent.txt", 10).unwrap();
+        assert!(result.is_empty());
+        cleanup(repo);
+    }
 }

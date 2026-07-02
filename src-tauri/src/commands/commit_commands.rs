@@ -2,15 +2,31 @@ use tauri::State;
 use serde::Deserialize;
 use crate::{
     error::AppError,
-    git::cherry_pick,
+    git::cherry_pick::{self, CherryPickOutcome},
     state::AppState,
 };
 
 #[tauri::command]
-pub async fn cmd_cherry_pick(oid: String, state: State<'_, AppState>) -> Result<(), AppError> {
+pub async fn cmd_cherry_pick(oid: String, state: State<'_, AppState>) -> Result<CherryPickOutcome, AppError> {
     let t = std::time::Instant::now();
     let r = (|| { let repo = state.open_repo()?; cherry_pick::cherry_pick(&repo, &oid) })();
     state.log_command("cmd_cherry_pick", t, &r);
+    r
+}
+
+#[tauri::command]
+pub async fn cmd_cherry_pick_continue(oid: String, state: State<'_, AppState>) -> Result<CherryPickOutcome, AppError> {
+    let t = std::time::Instant::now();
+    let r = (|| { let repo = state.open_repo()?; cherry_pick::cherry_pick_continue(&repo, &oid) })();
+    state.log_command("cmd_cherry_pick_continue", t, &r);
+    r
+}
+
+#[tauri::command]
+pub async fn cmd_cherry_pick_abort(state: State<'_, AppState>) -> Result<(), AppError> {
+    let t = std::time::Instant::now();
+    let r = (|| { let repo = state.open_repo()?; cherry_pick::abort_cherry_pick(&repo) })();
+    state.log_command("cmd_cherry_pick_abort", t, &r);
     r
 }
 

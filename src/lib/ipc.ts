@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 export const toErrMsg = (e: unknown): string =>
   e && typeof e === "object" && "message" in e ? String((e as { message: unknown }).message) : String(e);
-import type { RepoInfo, FileStatus, BranchInfo, StashEntry, MergeResult, ConflictEntry, ConflictDetail, TagEntry, RebaseOutcome } from "../types/git";
+import type { RepoInfo, FileStatus, BranchInfo, StashEntry, MergeResult, ConflictEntry, ConflictDetail, TagEntry, RebaseOutcome, CherryPickOutcome } from "../types/git";
 import type { FileDiff, DiffLine, BlameLine } from "../types/diff";
 import type { GraphPage, CommitDetail, FileHistoryEntry } from "../types/graph";
 
@@ -68,7 +68,13 @@ export const ipc = {
     invoke<string>("cmd_amend_commit", { message }),
 
   cherryPick: (oid: string) =>
-    invoke<void>("cmd_cherry_pick", { oid }),
+    invoke<CherryPickOutcome>("cmd_cherry_pick", { oid }),
+
+  cherryPickContinue: (oid: string) =>
+    invoke<CherryPickOutcome>("cmd_cherry_pick_continue", { oid }),
+
+  cherryPickAbort: () =>
+    invoke<void>("cmd_cherry_pick_abort"),
 
   // Branches
   listBranches: () =>

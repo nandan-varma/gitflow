@@ -22,9 +22,7 @@ export const useStagingStore = create<StagingStore>((set, get) => ({
   },
 
   selectRange: (keys: string[]) => {
-    const next = new Set(get().selectedLines);
-    keys.forEach((k) => next.add(k));
-    set({ selectedLines: next });
+    set({ selectedLines: new Set(keys) });
   },
 
   clearSelection: () => set({ selectedLines: new Set() }),

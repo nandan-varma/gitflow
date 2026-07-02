@@ -73,13 +73,13 @@ pub fn get_conflict_detail(repo: &git2::Repository, path: &str) -> Result<Confli
     let mut before_buf: Vec<String> = Vec::new();
 
     for line in content.lines() {
-        if line.starts_with("<<<<<<<") {
+        if line.starts_with("<<<<<<< ") || line == "<<<<<<<" {
             state = State::Ours;
             current_before = before_buf.clone();
             before_buf.clear();
-        } else if line.starts_with("=======") && state == State::Ours {
+        } else if line == "=======" && state == State::Ours {
             state = State::Theirs;
-        } else if line.starts_with(">>>>>>>") && state == State::Theirs {
+        } else if (line.starts_with(">>>>>>> ") || line == ">>>>>>>") && state == State::Theirs {
             conflicts.push(ConflictBlock {
                 ours_lines: current_ours.clone(),
                 theirs_lines: current_theirs.clone(),

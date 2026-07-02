@@ -4,6 +4,9 @@ interface Settings {
   defaultDiffMode: "unified" | "split";
   defaultBranchName: string;
   checkUpdatesOnStartup: boolean;
+  aiBaseUrl: string;
+  aiModel: string;
+  aiApiKey: string;
 }
 
 const KEY = "gitflow:settings";
@@ -12,6 +15,9 @@ const defaults: Settings = {
   defaultDiffMode: "unified",
   defaultBranchName: "main",
   checkUpdatesOnStartup: true,
+  aiBaseUrl: "https://api.openai.com/v1",
+  aiModel: "",
+  aiApiKey: "",
 };
 
 function load(): Settings {
@@ -35,6 +41,9 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
         defaultDiffMode: next.defaultDiffMode,
         defaultBranchName: next.defaultBranchName,
         checkUpdatesOnStartup: next.checkUpdatesOnStartup,
+        aiBaseUrl: next.aiBaseUrl,
+        aiModel: next.aiModel,
+        aiApiKey: next.aiApiKey,
       }));
       return next;
     }),

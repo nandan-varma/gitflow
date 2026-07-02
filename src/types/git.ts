@@ -65,6 +65,10 @@ export interface TagEntry {
   message: string | null;
 }
 
+export type CherryPickOutcome =
+  | { type: "Success"; oid: string }
+  | { type: "Conflicts" };
+
 export type RebaseOutcome =
   | { type: "Success" }
   | { type: "Conflicts"; current_step: number; total_steps: number };
