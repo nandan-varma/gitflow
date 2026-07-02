@@ -305,6 +305,9 @@ mod tests {
         let _ = std::fs::remove_dir_all(&tmp);
         std::fs::create_dir_all(&tmp).unwrap();
         let repo = git2::Repository::init(&tmp).unwrap();
+        let mut cfg = repo.config().unwrap();
+        cfg.set_str("user.name", "Test").unwrap();
+        cfg.set_str("user.email", "test@example.com").unwrap();
 
         let sig = repo.signature().unwrap();
         let tree_oid = {
