@@ -28,14 +28,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 11
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: lts/*
           cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -44,6 +45,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
+          cache-all-crates: true
+          cache-workspace-crates: true
           cache-on-failure: true
 
       - name: Install Linux system deps
@@ -58,7 +61,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
