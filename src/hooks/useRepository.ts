@@ -18,6 +18,8 @@ export function useRepoChangeListener() {
   useIpcEvent<{ paths: string[]; git_change: boolean }>("repo-changed", (payload) => {
     queryClient.invalidateQueries({ queryKey: ["status"] });
     queryClient.invalidateQueries({ queryKey: ["diff"] });
+    queryClient.invalidateQueries({ queryKey: ["blame"] });
+    queryClient.invalidateQueries({ queryKey: ["file-history"] });
     if (payload.git_change) {
       queryClient.invalidateQueries({ queryKey: ["branches"] });
       queryClient.invalidateQueries({ queryKey: ["stashes"] });

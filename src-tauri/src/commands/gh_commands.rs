@@ -83,6 +83,11 @@ pub async fn cmd_gh_pr_merge(
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
     let t = std::time::Instant::now();
+    if !matches!(strategy.as_str(), "merge" | "squash" | "rebase") {
+        let r = Err(AppError::InvalidArgument(format!("Invalid merge strategy: {strategy}")));
+        state.log_command("cmd_gh_pr_merge", t, &r);
+        return r;
+    }
     let num_str = number.to_string();
     let flag = format!("--{}", strategy);
     let mut args = vec!["pr", "merge", &num_str, &flag];

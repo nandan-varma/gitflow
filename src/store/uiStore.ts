@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { MenuItem } from "../types/contextMenu";
 
-type ActiveView = "graph" | "staging" | "diff" | "conflicts" | "stash" | "settings" | "pull-requests" | "blame" | "file-history";
+type ActiveView = "graph" | "staging" | "conflicts" | "stash" | "settings" | "pull-requests" | "blame" | "file-history";
 type ActiveDialog = null | "branch-create" | "merge" | "rebase" | "stash-push" | "branch-delete" | "about" | "tag-create" | "interactive-rebase";
 
 interface UIStore {

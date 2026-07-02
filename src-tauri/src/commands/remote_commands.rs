@@ -99,7 +99,7 @@ pub async fn cmd_interactive_rebase(
         let dir = tempfile::tempdir()?;
         let todo_path = dir.path().join("todo");
         let script_path = dir.path().join("editor.sh");
-        std::fs::write(&todo_path, &todo_content)?;
+        std::fs::write(&todo_path, todo_content)?;
         let script = "#!/bin/sh\ncp -- \"${GITFLOW_TODO_FILE:?}\" \"$1\"\n";
         std::fs::write(&script_path, script)?;
 
