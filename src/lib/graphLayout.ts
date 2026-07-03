@@ -62,6 +62,14 @@ export interface LaidOutEdge {
   colorIndex: number;
 }
 
+function pickFreeLane(freeLanes: Set<number>, activeLanes: unknown[]): number {
+  if (freeLanes.size === 0) return activeLanes.length;
+  let min = Infinity;
+  for (const l of freeLanes) if (l < min) min = l;
+  freeLanes.delete(min);
+  return min;
+}
+
 export function computeLanes(nodes: GraphNode[]): {
   nodes: LaidOutNode[];
   edges: LaidOutEdge[];
@@ -69,7 +77,7 @@ export function computeLanes(nodes: GraphNode[]): {
 } {
   const activeLanes: ({ childOid: string; color: number } | null)[] = [];
   const laneMap = new Map<string, number>();
-  const freeLanes: number[] = [];
+  const freeLanes = new Set<number>();
   let nextColor = 0;
 
   const result: LaidOutNode[] = [];
@@ -89,10 +97,10 @@ export function computeLanes(nodes: GraphNode[]): {
         nextColor++;
       }
       activeLanes[assignedLane] = null;
-      freeLanes.push(assignedLane);
+      freeLanes.add(assignedLane);
       lane = assignedLane;
     } else {
-      lane = freeLanes.length > 0 ? freeLanes.shift()! : activeLanes.length;
+      lane = pickFreeLane(freeLanes, activeLanes);
       if (lane >= activeLanes.length) activeLanes.push(null);
       colorIndex = nextColor;
       nextColor++;
@@ -113,21 +121,19 @@ export function computeLanes(nodes: GraphNode[]): {
         if (lane < activeLanes.length) {
           activeLanes[lane] = { childOid: parentOid, color: colorIndex };
           laneMap.set(parentOid, lane);
-          const fi = freeLanes.indexOf(lane);
-          if (fi >= 0) freeLanes.splice(fi, 1);
+          freeLanes.delete(lane);
         }
         edgeLane = lane;
         edgeColor = colorIndex;
       } else {
-        const ml = freeLanes.length > 0 ? freeLanes.shift()! : activeLanes.length;
+        const ml = pickFreeLane(freeLanes, activeLanes);
         if (ml >= activeLanes.length) activeLanes.push(null);
         const mc = nextColor;
         nextColor++;
         if (ml < activeLanes.length) {
           activeLanes[ml] = { childOid: parentOid, color: mc };
           laneMap.set(parentOid, ml);
-          const fi = freeLanes.indexOf(ml);
-          if (fi >= 0) freeLanes.splice(fi, 1);
+          freeLanes.delete(ml);
         }
         edgeLane = ml;
         edgeColor = mc;

@@ -42,9 +42,10 @@ const TERMINAL_PRESETS = [
   { label: "Alacritty", app: "Alacritty" },
 ];
 
+// Only OpenAI-compatible endpoints work here (Bearer auth + /chat/completions).
+// Anthropic's native API is NOT compatible — use OpenRouter to access Claude.
 const AI_PRESETS = [
   { name: "OpenAI", url: "https://api.openai.com/v1" },
-  { name: "Anthropic", url: "https://api.anthropic.com/v1" },
   { name: "OpenRouter", url: "https://openrouter.ai/api/v1" },
   { name: "Ollama", url: "http://localhost:11434/v1" },
 ];

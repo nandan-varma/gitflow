@@ -27,13 +27,23 @@ cargo clippy
 ```bash
 # Frontend unit tests
 pnpm test            # vitest run
-
-# Rust unit tests
-cargo test            # from src-tauri/
-
-# Watch mode
 pnpm test:watch
+
+# Run a single frontend test file
+pnpm test src/lib/graphLayout.test.ts
+
+# Run a single frontend test by name
+pnpm test -- -t "linear history"
+
+# Rust unit tests (from src-tauri/)
+cargo test
+
+# Run a single Rust test
+cargo test test_graph_returns_all_commits
+cargo test --lib git::staging   # all tests in a module
 ```
+
+Rust tests spin up temporary git repos in the system temp dir and clean up after themselves.
 
 ## Architecture
 
@@ -44,7 +54,7 @@ This is a **Tauri 2 desktop app**: a React/TypeScript frontend rendered in a web
 - **`git/`** — pure git logic using `git2` (libgit2). One file per domain: `branches`, `conflict`, `diff`, `graph`, `repository`, `staging`, `stash`, `status`. There is no `commits` module — commit creation/amend happens inline in `commit_commands.rs` using git2 directly.
 - **`commands/`** — Tauri command handlers, one file per domain. Each `cmd_*` function is registered in `lib.rs`'s `invoke_handler!` macro and callable from the frontend:
   - `repo_commands`, `graph_commands`, `diff_commands`, `staging_commands`, `commit_commands`, `branch_commands`, `stash_commands`, `conflict_commands` — git2-based operations
-  - `remote_commands` — shells out to the system `git` binary for push/fetch/pull (avoids git2 credential complexity)
+  - `remote_commands` — shells out to the system `git` binary for push/fetch/pull (avoids git2 credential complexity). Also contains `cmd_delete_tag` (shells out to `git tag -d`) and `cmd_interactive_rebase`.
   - `gh_commands` — shells out to the `gh` CLI for PR and issue operations
   - `opener_commands` — shells out to `code` / `open` for VS Code, Finder, and Terminal integration
 - **`state/app_state.rs`** — shared `AppState`: repo path (Mutex), file-watcher stop signal, `CommandLogEntry` MPSC sender (`log_tx`).
@@ -89,12 +99,16 @@ After adding any command: register it in `lib.rs` imports + `invoke_handler!`, a
 
 **Staging type alias:** `git/staging.rs` exports `pub type HunkLine = DiffLine` (from `git/diff.rs`). `HunkLine` is what IPC deserialization uses for hunk-level staging; it is identical to `DiffLine` and derives both `Serialize` and `Deserialize`.
 
+**`Rc<RefCell>` in `git/diff.rs` and `git/graph.rs`:** `git2::Diff::foreach` takes four separate `&mut Fn` callback parameters so a single `&mut Vec` cannot be shared across all of them — `Rc<RefCell<Vec<_>>>` is the only approach the API allows. All clones are dropped before `Rc::try_unwrap(…)?` is called. Do not replace this with a simpler pattern without understanding the API constraint.
+
+**`start_rebase` in `git/branches.rs`** accepts both local and remote-tracking branch names: it tries `BranchType::Local` first, then `BranchType::Remote`, and returns a clear `InvalidArgument` error if neither resolves.
+
 ### Frontend (`src/`)
 
 - **`lib/ipc.ts`** — single file mapping every Tauri `invoke` call. All IPC goes through here; never call `invoke` directly elsewhere.
-- **`lib/graphLayout.ts`** — client-side DAG lane layout: takes raw `GraphPage` from Rust, assigns `x`/`lane` positions for rendering.
+- **`lib/graphLayout.ts`** — client-side DAG lane layout: takes raw `GraphPage` from Rust, assigns `x`/`lane` positions for rendering. Uses a `Set<number>` (`freeLanes`) with a `pickFreeLane()` helper (picks the minimum free lane index) for O(1) lane recycling.
 - **`lib/queryClient.ts`** — React Query client + `queryKeys` registry. All query keys live here; use the registry for cache invalidation (prefix-invalidate `["github", "prs"]` to bust all PR state variants).
-- **`lib/commands.ts`** — app-wide command registry (see "Command system" below). Also exports `isMac`, `matchesShortcut`, `toAccelerator`, `formatShortcut`.
+- **`lib/commands.ts`** — app-wide command registry (see "Command system" below). Also exports `isMac`, `matchesShortcut`, `toAccelerator`, `formatShortcut`. `setCommands()` writes to a module-level ref (not React state) so it is safe to call during render — `useAppCommands` does this intentionally to keep commands fresh on every render.
 - **`lib/menu.ts`** — native macOS menubar built from the command registry.
 - **`lib/theme.ts`** — resolves the `theme` setting (`system`/`light`/`dark`) to `document.documentElement.dataset.theme`; follows OS appearance live in system mode.
 - **`lib/a11y.ts`** — `rowProps(onActivate)`: spread onto clickable `<div>` rows to add `role="button"`, `tabIndex`, Enter/Space activation, and ⇧F10 → synthesized `contextmenu` event (reuses the row's existing `onContextMenu`).
@@ -180,7 +194,13 @@ const { showContextMenu } = useUIStore();
 
 ### AI chat (`src/components/ai/`, `src/lib/aiTools.ts`, `src/store/aiStore.ts`)
 
-An in-app AI assistant uses the OpenAI-compatible chat API. Configuration (`aiBaseUrl`, `aiModel`, `aiApiKey`) lives in `settingsStore` (persisted to `localStorage`) — defaults point to `https://api.openai.com/v1` but any OpenAI-compat endpoint works. The AI goes through the same `ipc.*` call path as the UI (command log, watcher, React Query invalidation all fire normally). `aiTools.ts` defines the full tool schema mapping IPC calls to OpenAI function-call format.
+An in-app AI assistant uses the **OpenAI-compatible** chat API (Bearer token auth, `/chat/completions` endpoint). **Anthropic's native API is not compatible** — users who want Claude should go through OpenRouter or another OpenAI-compat proxy. Configuration (`aiBaseUrl`, `aiModel`, `aiApiKey`) lives in `settingsStore` (persisted to `localStorage`).
+
+The AI goes through the same `ipc.*` call path as the UI (command log, watcher, React Query invalidation all fire normally). `aiTools.ts` defines the full tool schema mapping IPC calls to OpenAI function-call format, capped at `MAX_ROUNDS = 20` tool-call rounds per turn.
+
+**`DANGEROUS_TOOLS`** (`src/lib/aiTools.ts`) — a `Set` of tool names that require the user to hold a button for 800 ms before executing. Currently: `discard_changes`, `amend_commit`, `merge_branch`, `delete_branch`, `stash_drop`, `git_push`, `gh_pr_merge`, `abort_merge`, `abort_rebase`, `cherry_pick_abort`, `resolve_conflict`. Add new destructive/irreversible tools here. After a non-read-only tool executes, `queryClient.invalidateQueries()` is called to sync UI state.
+
+**`aiStore`** (`src/store/aiStore.ts`) — holds `messages: OpenAI.ChatCompletionMessageParam[]` alongside a parallel `msgIds: string[]` array of monotonically increasing IDs. Use `msgIds[i]` as the React `key` when rendering the message list, never the array index (clearChat resets the array and new messages would reuse stale DOM nodes).
 
 ### Log filtering (`lib.rs`)
 

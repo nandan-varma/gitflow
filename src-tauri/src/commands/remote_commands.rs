@@ -143,9 +143,11 @@ pub async fn cmd_interactive_rebase(
             std::fs::set_permissions(&script_path, perms)?;
         }
 
+        let editor_str = script_path.to_str()
+            .ok_or_else(|| AppError::Other("temp path contains non-UTF-8 characters".into()))?;
         let out = tokio::process::Command::new("git")
             .args(["rebase", "-i", &base])
-            .env("GIT_SEQUENCE_EDITOR", script_path.to_str().unwrap_or(""))
+            .env("GIT_SEQUENCE_EDITOR", editor_str)
             .env("GIT_EDITOR", "true")
             .env("GITFLOW_TODO_FILE", &todo_path)
             .current_dir(&path)

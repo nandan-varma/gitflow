@@ -46,7 +46,8 @@ enum DiffEvent {
 }
 
 fn diff_to_file_diff(diff: &git2::Diff, requested_path: &str) -> Result<FileDiff, AppError> {
-    // Use Rc<RefCell> so all four foreach callbacks can share the events vec
+    // git2::Diff::foreach takes four separate &mut Fn parameters so a single &mut Vec
+    // cannot be passed to all of them — Rc<RefCell> is the only option the API allows.
     let events: Rc<RefCell<Vec<DiffEvent>>> = Rc::new(RefCell::new(Vec::new()));
 
     let e_file = Rc::clone(&events);
@@ -91,7 +92,9 @@ fn diff_to_file_diff(diff: &git2::Diff, requested_path: &str) -> Result<FileDiff
     )?;
 
     drop((e_file, e_bin, e_hunk, e_line));
-    let all_events = Rc::try_unwrap(events).unwrap().into_inner();
+    let all_events = Rc::try_unwrap(events)
+        .map_err(|_| AppError::Other("internal: diff Rc still borrowed".into()))?
+        .into_inner();
 
     let mut hunks: Vec<DiffHunk> = Vec::new();
     let mut is_binary = false;
@@ -151,7 +154,9 @@ pub fn diff_to_file_diffs(diff: &git2::Diff) -> Result<Vec<FileDiff>, AppError> 
         }),
     )?;
     drop((e_file, e_bin, e_hunk, e_line));
-    let all_events = Rc::try_unwrap(events).unwrap().into_inner();
+    let all_events = Rc::try_unwrap(events)
+        .map_err(|_| AppError::Other("internal: diff Rc still borrowed".into()))?
+        .into_inner();
 
     let mut result: Vec<FileDiff> = Vec::new();
     let mut cur_path = String::new();

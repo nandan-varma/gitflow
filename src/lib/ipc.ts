@@ -120,7 +120,7 @@ export const ipc = {
     invoke<void>("cmd_create_tag", { name, oid, message: message ?? null }),
 
   deleteTag: (name: string) =>
-    invoke<void>("cmd_delete_tag", { name }),
+    invoke<string>("cmd_delete_tag", { name }),
 
   // Stash
   getStashDiff: (index: number) =>

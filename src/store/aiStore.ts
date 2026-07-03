@@ -30,11 +30,15 @@ function loadMessages(): OpenAI.ChatCompletionMessageParam[] {
   }
 }
 
+let _msgSeq = 0;
+function nextMsgId() { return `msg-${++_msgSeq}`; }
+
 interface AIStore {
   open: boolean;
   setOpen: (v: boolean) => void;
 
   messages: OpenAI.ChatCompletionMessageParam[];
+  msgIds: string[];
   streamText: string | null;
   toolCalls: ToolCallStatus[];
   busy: boolean;
@@ -51,11 +55,14 @@ interface AIStore {
   clearChat: () => void;
 }
 
-export const useAIStore = create<AIStore>((set, get) => ({
+export const useAIStore = create<AIStore>((set, get) => {
+  const initialMessages = loadMessages();
+  return {
   open: false,
   setOpen: (open) => set({ open }),
 
-  messages: loadMessages(),
+  messages: initialMessages,
+  msgIds: initialMessages.map(() => nextMsgId()),
   streamText: null,
   toolCalls: [],
   busy: false,
@@ -63,7 +70,8 @@ export const useAIStore = create<AIStore>((set, get) => ({
 
   addMessage: (msg) => {
     const next = [...get().messages, msg];
-    set({ messages: next });
+    const nextIds = [...get().msgIds, nextMsgId()];
+    set({ messages: next, msgIds: nextIds });
     saveMessages(next);
   },
 
@@ -106,7 +114,8 @@ export const useAIStore = create<AIStore>((set, get) => ({
   setError: (error) => set({ error }),
 
   clearChat: () => {
-    set({ messages: [], toolCalls: [], streamText: null, error: null });
+    set({ messages: [], msgIds: [], toolCalls: [], streamText: null, error: null });
     saveMessages([]);
   },
-}));
+};
+});

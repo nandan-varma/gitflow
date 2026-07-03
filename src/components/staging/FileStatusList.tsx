@@ -27,9 +27,10 @@ interface Props {
   staged: boolean;
   onStageAll?: () => Promise<void>;
   onUnstageAll?: () => Promise<void>;
+  onStash?: () => void;
 }
 
-export function FileStatusList({ files, staged, onStageAll, onUnstageAll }: Props) {
+export function FileStatusList({ files, staged, onStageAll, onUnstageAll, onStash }: Props) {
   const { selectedFilePath, selectFile, showContextMenu, openBlame, openFileHistory } = useUIStore();
   const { codeEditor, terminalApp } = useSettingsStore();
   const addToast = useToastStore((s) => s.addToast);
@@ -83,6 +84,15 @@ export function FileStatusList({ files, staged, onStageAll, onUnstageAll }: Prop
             style={{ fontSize: 11, color: "var(--text-muted)", padding: "2px 6px" }}
           >
             Unstage all
+          </button>
+        )}
+        {!staged && onStash && (
+          <button
+            onClick={onStash}
+            title="Stash all changes"
+            style={{ fontSize: 11, color: "var(--text-muted)", padding: "2px 6px" }}
+          >
+            Stash
           </button>
         )}
         {!staged && onStageAll && (

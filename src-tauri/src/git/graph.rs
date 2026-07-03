@@ -25,30 +25,25 @@ pub fn get_commit_graph(
     limit: usize,
     offset: usize,
 ) -> Result<GraphPage, AppError> {
-    // Collect refs (local branches and tags) for labeling — skip remote-tracking refs
+    // Single pass: build ref label map (heads + tags) and populate the revwalk.
     let mut ref_map: HashMap<String, Vec<String>> = HashMap::new();
+    let mut walk = repo.revwalk()?;
+    walk.push_head().ok();
+
     for reference in repo.references()? {
         let r = reference?;
         let name = r.name().unwrap_or("");
-        // Only label from local branches and tags
-        if !name.starts_with("refs/heads/") && !name.starts_with("refs/tags/") {
-            continue;
+        if name.starts_with("refs/heads/") || name.starts_with("refs/tags/") {
+            let shorthand = r.shorthand().unwrap_or("?").to_string();
+            if let Ok(peeled) = r.peel(git2::ObjectType::Commit) {
+                ref_map.entry(peeled.id().to_string()).or_default().push(shorthand);
+            }
         }
-        let shorthand = r.shorthand().unwrap_or("?").to_string();
-        // Peel to the commit object for labeling
-        if let Ok(peeled) = r.peel(git2::ObjectType::Commit) {
-            ref_map.entry(peeled.id().to_string()).or_default().push(shorthand);
-        }
-    }
-
-    // Topological walk with date sorting
-    let mut walk = repo.revwalk()?;
-    walk.push_head().ok();
-    for r in repo.references()?.flatten() {
         if let Some(oid) = r.target() {
             walk.push(oid).ok();
         }
     }
+
     walk.set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME)?;
 
     let all_oids: Vec<git2::Oid> = walk
@@ -181,7 +176,9 @@ pub fn get_commit_detail(repo: &git2::Repository, oid_str: &str) -> Result<Commi
     )?;
 
     drop((cf_file, cf_line));
-    let changed_files = Rc::try_unwrap(changed_files).unwrap().into_inner();
+    let changed_files = Rc::try_unwrap(changed_files)
+        .map_err(|_| AppError::Other("internal: diff Rc still borrowed".into()))?
+        .into_inner();
 
     let author = commit.author();
     let committer = commit.committer();

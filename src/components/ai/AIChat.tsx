@@ -41,7 +41,7 @@ export function AIChat() {
 
   const {
     open, setOpen,
-    messages, streamText, toolCalls, busy, error,
+    messages, msgIds, streamText, toolCalls, busy, error,
     addMessage, updateStream,
     startToolCall, runToolCall, completeToolCall, failToolCall,
     setBusy, setError, clearChat,
@@ -84,8 +84,14 @@ export function AIChat() {
     let history: Msg[] = [...messages, { role: "user", content: text }];
     addMessage({ role: "user", content: text });
 
+    const MAX_ROUNDS = 20;
+    let rounds = 0;
     try {
       for (;;) {
+        if (rounds++ >= MAX_ROUNDS) {
+          setError(`Stopped after ${MAX_ROUNDS} tool-call rounds.`);
+          break;
+        }
         updateStream("");
         const stream = client.chat.completions.stream({
           model: aiModel,
@@ -326,7 +332,7 @@ export function AIChat() {
             {messages.map((m, i) => {
               if (m.role === "user") {
                 return (
-                  <div key={i} className="msg-user">
+                  <div key={msgIds[i]} className="msg-user">
                     {typeof m.content === "string" ? m.content : ""}
                   </div>
                 );
@@ -336,7 +342,7 @@ export function AIChat() {
                   (c): c is Extract<ToolCall, { type: "function" }> => c.type === "function",
                 );
                 return (
-                  <div key={i} style={{ alignSelf: "flex-start", maxWidth: "95%", display: "flex", flexDirection: "column", gap: 4 }}>
+                  <div key={msgIds[i]} style={{ alignSelf: "flex-start", maxWidth: "95%", display: "flex", flexDirection: "column", gap: 4 }}>
                     {typeof m.content === "string" && m.content && (
                       <div className="msg-assistant-text">
                         {m.content}
@@ -434,6 +440,8 @@ export function AIChat() {
                     onMouseDown={startHold}
                     onMouseUp={cancelHold}
                     onMouseLeave={cancelHold}
+                    onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); startHold(); } }}
+                    onKeyUp={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); cancelHold(); } }}
                     style={{
                       position: "relative",
                       overflow: "hidden",

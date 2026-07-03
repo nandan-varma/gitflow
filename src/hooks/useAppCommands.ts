@@ -111,7 +111,9 @@ export function useAppCommands() {
     { id: "open-terminal", label: "Open in Terminal", enabled: repoOpen, run: () => ipc.openInTerminal("", terminalApp) },
   ];
 
-  useEffect(() => setCommands(commands));
+  // Write to the module-level ref every render — setCommands is not a React state
+  // setter and does not trigger re-renders, so calling it inline is idiomatic here.
+  setCommands(commands);
 
   // Global shortcut listener (once)
   useEffect(() => {

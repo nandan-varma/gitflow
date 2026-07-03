@@ -214,8 +214,15 @@ pub enum RebaseOutcome {
 }
 
 pub fn start_rebase(repo: &git2::Repository, upstream_name: &str) -> Result<RebaseOutcome, AppError> {
-    let upstream = repo.find_branch(upstream_name, git2::BranchType::Local)?;
-    let upstream_ac = repo.reference_to_annotated_commit(upstream.get())?;
+    let upstream_ac = if let Ok(b) = repo.find_branch(upstream_name, git2::BranchType::Local) {
+        repo.reference_to_annotated_commit(b.get())?
+    } else if let Ok(b) = repo.find_branch(upstream_name, git2::BranchType::Remote) {
+        repo.reference_to_annotated_commit(b.get())?
+    } else {
+        return Err(AppError::InvalidArgument(format!(
+            "Branch '{upstream_name}' not found (pass a local or remote-tracking branch name)"
+        )));
+    };
     let sig = repo.signature()?;
     let mut rebase = repo.rebase(None, Some(&upstream_ac), None, None)?;
     process_rebase_ops(repo, &mut rebase, &sig)

@@ -10,7 +10,7 @@ import { queryClient } from "../../lib/queryClient";
 
 export function StagingArea() {
   const { data: status = [] } = useFileStatus();
-  const { selectedFilePath, selectedFileMode, selectFile } = useUIStore();
+  const { selectedFilePath, selectedFileMode, selectFile, openDialog } = useUIStore();
 
   const unstagedFiles = status.filter((f) => f.unstaged && !f.conflict);
   const stagedFiles = status.filter((f) => f.staged);
@@ -53,7 +53,7 @@ export function StagingArea() {
         }}
       >
         <div style={{ flex: 1, borderBottom: "1px solid var(--border)", overflow: "hidden" }}>
-          <FileStatusList files={unstagedFiles} staged={false} onStageAll={stageAll} />
+          <FileStatusList files={unstagedFiles} staged={false} onStageAll={stageAll} onStash={() => openDialog("stash-push")} />
         </div>
         <div style={{ flex: 1, overflow: "hidden" }}>
           <FileStatusList files={stagedFiles} staged={true} onUnstageAll={unstageAll} />

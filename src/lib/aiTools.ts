@@ -92,6 +92,8 @@ export const tools: OpenAI.ChatCompletionTool[] = [
 // Tools that pause for an explicit user Approve/Deny in the chat UI.
 export const DANGEROUS_TOOLS = new Set([
   "discard_changes",
+  "amend_commit",      // rewrites published history
+  "merge_branch",      // modifies branch structure, may be irreversible
   "delete_branch",
   "stash_drop",
   "git_push",
