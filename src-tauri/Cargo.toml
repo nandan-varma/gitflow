@@ -1,6 +1,6 @@
 [package]
 name = "gitflow-studio"
-version = "0.1.5"
+version = "0.1.6"
 description = "GitFlow Studio — A modern Git client"
 authors = ["nandan-varma"]
 edition = "2021"
