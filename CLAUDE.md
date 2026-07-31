@@ -45,6 +45,13 @@ cargo test --lib git::staging   # all tests in a module
 
 Rust tests spin up temporary git repos in the system temp dir and clean up after themselves.
 
+## Dependency audits (CI-enforced)
+
+```bash
+cargo audit                    # from src-tauri/ — see ignored advisories in .github/workflows/ci.yml
+pnpm audit --prod              # frontend; --prod excludes vite/esbuild/babel dev-toolchain noise
+```
+
 ## Architecture
 
 This is a **Tauri 2 desktop app**: a React/TypeScript frontend rendered in a webview, communicating with a Rust backend over Tauri's IPC bridge.
@@ -57,9 +64,12 @@ This is a **Tauri 2 desktop app**: a React/TypeScript frontend rendered in a web
   - `remote_commands` — shells out to the system `git` binary for push/fetch/pull (avoids git2 credential complexity). Also contains `cmd_delete_tag` (shells out to `git tag -d`) and `cmd_interactive_rebase`.
   - `gh_commands` — shells out to the `gh` CLI for PR and issue operations
   - `opener_commands` — shells out to `code` / `open` for VS Code, Finder, and Terminal integration
-- **`state/app_state.rs`** — shared `AppState`: repo path (Mutex), file-watcher stop signal, `CommandLogEntry` MPSC sender (`log_tx`).
+  - `secrets_commands` — reads/writes the AI API key via the OS credential store (`keyring` crate), not git2 or a shell-out
+- **`state/app_state.rs`** — shared `AppState`: repo path (Mutex), file-watcher stop signal, `CommandLogEntry` MPSC sender (`log_tx`), `graph_cache` (see "Commit-graph caching" below).
 - **`watcher/`** — filesystem watcher (`notify`) that watches the workdir recursively, filters build-dir noise (`node_modules/`, `target/`, etc.) and emits `repo-changed` events with a `git_change` boolean — `.git` mutations cause full invalidation, workdir edits refresh status/diff only.
 - **`error.rs`** — `AppError` enum serialized as `{ kind, message }`.
+
+`keyring` (used by `secrets_commands`) is declared per-platform in `Cargo.toml` under `[target.'cfg(target_os = "...")'.dependencies]` (`apple-native` / `windows-native` / `sync-secret-service`+`crypto-rust`), not in the main `[dependencies]` block — look there if it seems missing.
 
 **Adding a new git2 command** — use the sync closure trick so `log_command` always fires even on early `?` returns:
 
@@ -93,6 +103,8 @@ pub async fn cmd_git_foo(state: State<'_, AppState>) -> Result<String, AppError>
 
 `remote_commands.rs` and `gh_commands.rs` each have a private `run_git`/`run_gh` helper that encapsulates this pattern — add new shell commands there. `opener_commands.rs` uses the same async pattern directly (no shared helper).
 
+**Validate before shelling out.** Args are passed as `Command::args([...])` (never a shell string), so classic shell injection isn't possible, but a value starting with `-` can still be parsed as a CLI flag instead of a positional ref/oid. Any free-text branch/tag/ref name or commit oid reaching `git`/`gh` must go through `remote_commands::validate_ref_arg(value, field)` (rejects empty/dash-leading) or `validate_oid_arg(oid)` (requires hex, min length) first — both are `pub(crate)` and already used across `remote_commands.rs` and `gh_commands.rs`.
+
 After adding any command: register it in `lib.rs` imports + `invoke_handler!`, add to `src/lib/ipc.ts`.
 
 **Stash quirk:** `git/stash.rs` functions require `&mut Repository`. Use `let mut repo = state.open_repo()?` for stash commands.
@@ -103,6 +115,15 @@ After adding any command: register it in `lib.rs` imports + `invoke_handler!`, a
 
 **`start_rebase` in `git/branches.rs`** accepts both local and remote-tracking branch names: it tries `BranchType::Local` first, then `BranchType::Remote`, and returns a clear `InvalidArgument` error if neither resolves.
 
+**Resolving a frontend-supplied path against the repo.** Never do `workdir.join(user_path)` directly — a path like `../../.ssh/id_rsa` would escape the repo. Use `git::repository::resolve_within_workdir(base, user_path)`, which canonicalizes both sides and rejects anything that doesn't stay under `base`. Used by `opener_commands.rs` (VS Code/Finder/Terminal) and `git/conflict.rs` (`get_conflict_detail`/`resolve_conflict`) — the latter is reachable from the AI tool-call surface with a free-text path, so this check matters even for "internal" callers.
+
+**Commit-graph caching (`git/graph.rs` + `state/app_state.rs`).** The commit graph is paginated by the frontend (`useCommitGraph`, 200 commits/page via `useInfiniteQuery`), and a full revwalk from HEAD is expensive on large repos. There is no `get_commit_graph` function in production code anymore — it's split:
+- `list_all_oids(repo)` — the expensive full topological walk.
+- `compute_state_key(repo)` — cheap fingerprint (HEAD target + every ref's target oid, hashed) used to detect whether a cached walk is stale.
+- `page_from_oids(repo, oids, limit, offset)` — cheap slice + node-building for one page.
+
+`AppState.graph_cache` holds the last `(key, oids)` pair; `cmd_get_commit_graph` reuses it when the key still matches instead of re-walking, and it's cleared on `set_repo_path` (new repo opened). A one-shot `get_commit_graph(repo, limit, offset)` composing `list_all_oids` + `page_from_oids` still exists, but only as a private test helper inside `git/graph.rs`'s `#[cfg(test)]` module — don't expect to find it as a public API.
+
 ### Frontend (`src/`)
 
 - **`lib/ipc.ts`** — single file mapping every Tauri `invoke` call. All IPC goes through here; never call `invoke` directly elsewhere.
@@ -112,7 +133,7 @@ After adding any command: register it in `lib.rs` imports + `invoke_handler!`, a
 - **`lib/menu.ts`** — native macOS menubar built from the command registry.
 - **`lib/theme.ts`** — resolves the `theme` setting (`system`/`light`/`dark`) to `document.documentElement.dataset.theme`; follows OS appearance live in system mode.
 - **`lib/a11y.ts`** — `rowProps(onActivate)`: spread onto clickable `<div>` rows to add `role="button"`, `tabIndex`, Enter/Space activation, and ⇧F10 → synthesized `contextmenu` event (reuses the row's existing `onContextMenu`).
-- **`store/`** — Zustand stores: `uiStore` (active view, dialogs, panel sizes, context menu state), `repoStore` (repo path, recent repos), `stagingStore`, `commandLogStore`, `confirmStore` (global confirm dialog; danger variant is hold-to-confirm), `toastStore`, `settingsStore` (persisted to `localStorage`; to add a setting, extend the `Settings` interface + `defaults` — persistence derives its keys from `defaults`).
+- **`store/`** — Zustand stores: `uiStore` (active view, dialogs, panel sizes, context menu state), `repoStore` (repo path, recent repos), `stagingStore`, `commandLogStore`, `confirmStore` (global confirm dialog; danger variant is hold-to-confirm), `toastStore`, `settingsStore` (persisted to `localStorage`; to add a setting, extend the `Settings` interface + `defaults` — persistence derives its keys from `defaults`), `aiKeyStore` (AI API key — deliberately *not* part of `settingsStore`/`localStorage`; see AI chat section).
 - **`hooks/`** — React Query hooks wrapping `ipc.*`. All fetching and mutations live here, not in components.
 - **`layouts/AppShell.tsx`** — top-level layout; mounts `useAppCommands()`, the `command-log` listener, the macOS menu rebuild effect, theme/zoom-on-startup, the auto-fetch interval, and renders the global `<ContextMenu />`, `<CommandPalette />`, `<ConfirmDialog />`, and all `activeDialog` dialogs.
 - **`types/`** — shared TypeScript types mirroring Rust structs (`git.ts`, `diff.ts`, `graph.ts`, `github.ts`), plus `contextMenu.ts` for the `MenuItem` union type.
@@ -194,7 +215,7 @@ const { showContextMenu } = useUIStore();
 
 ### AI chat (`src/components/ai/`, `src/lib/aiTools.ts`, `src/store/aiStore.ts`)
 
-An in-app AI assistant uses the **OpenAI-compatible** chat API (Bearer token auth, `/chat/completions` endpoint). **Anthropic's native API is not compatible** — users who want Claude should go through OpenRouter or another OpenAI-compat proxy. Configuration (`aiBaseUrl`, `aiModel`, `aiApiKey`) lives in `settingsStore` (persisted to `localStorage`).
+An in-app AI assistant uses the **OpenAI-compatible** chat API (Bearer token auth, `/chat/completions` endpoint). **Anthropic's native API is not compatible** — users who want Claude should go through OpenRouter or another OpenAI-compat proxy. `aiBaseUrl` and `aiModel` live in `settingsStore` (persisted to `localStorage`), but `aiApiKey` lives in **`aiKeyStore`** (`src/store/aiKeyStore.ts`), backed by the OS credential store via `ipc.getAiApiKey()`/`ipc.setAiApiKey()` (see `secrets_commands.rs`) — never add it back to `settingsStore`, or it'll land in plaintext `localStorage` again. `aiKeyStore.load()` is called once from `AppShell` on mount; it also migrates a legacy plaintext key left over in the old `localStorage` settings blob (see `extractLegacyApiKey`), writing it to the keychain and scrubbing it from `localStorage`.
 
 The AI goes through the same `ipc.*` call path as the UI (command log, watcher, React Query invalidation all fire normally). `aiTools.ts` defines the full tool schema mapping IPC calls to OpenAI function-call format, capped at `MAX_ROUNDS = 20` tool-call rounds per turn.
 
