@@ -1,3 +1,4 @@
+use std::path::{Path, PathBuf};
 use serde::Serialize;
 use crate::error::AppError;
 
@@ -74,6 +75,23 @@ pub fn get_repo_info(repo: &git2::Repository) -> Result<RepoInfo, AppError> {
     })
 }
 
+/// Resolve a repo-relative path against `base` and verify it stays inside
+/// `base` (rejects `..` traversal and absolute-path overrides). Both sides
+/// are canonicalized, so `user_path` must name an existing file or directory.
+pub fn resolve_within_workdir(base: &Path, user_path: &str) -> Result<PathBuf, AppError> {
+    let base = base
+        .canonicalize()
+        .map_err(|_| AppError::Other("Repository path missing".into()))?;
+    let joined = if user_path.is_empty() { base.clone() } else { base.join(user_path) };
+    let canonical = joined
+        .canonicalize()
+        .map_err(|_| AppError::InvalidArgument(format!("Path does not exist: {user_path}")))?;
+    if !canonical.starts_with(&base) {
+        return Err(AppError::InvalidArgument("Path is outside repository".into()));
+    }
+    Ok(canonical)
+}
+
 pub fn list_tags(repo: &git2::Repository) -> Result<Vec<TagEntry>, AppError> {
     let mut tags = Vec::new();
     repo.tag_foreach(|oid, name| {
@@ -92,4 +110,57 @@ pub fn list_tags(repo: &git2::Repository) -> Result<Vec<TagEntry>, AppError> {
     })?;
     tags.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(tags)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    static COUNTER: AtomicU32 = AtomicU32::new(0);
+
+    fn tmp_dir() -> PathBuf {
+        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+        std::env::temp_dir().join(format!("resolve_within_workdir_{}", n))
+    }
+
+    #[test]
+    fn rejects_parent_traversal() {
+        let dir = tmp_dir();
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let result = resolve_within_workdir(&dir, "../outside");
+        assert!(result.is_err());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn rejects_traversal_to_existing_sibling_file() {
+        // Same shape of attack as `../outside`, but against a path that actually
+        // exists — the case `get_conflict_detail`/`resolve_conflict` need covered,
+        // since canonicalize() only succeeds on real paths.
+        let parent = tmp_dir();
+        let _ = fs::remove_dir_all(&parent);
+        let base = parent.join("repo");
+        let sibling = parent.join("secret.txt");
+        fs::create_dir_all(&base).unwrap();
+        fs::write(&sibling, "top secret").unwrap();
+        let result = resolve_within_workdir(&base, "../secret.txt");
+        assert!(result.is_err());
+        let _ = fs::remove_dir_all(&parent);
+    }
+
+    #[test]
+    fn accepts_inner_file() {
+        let dir = tmp_dir();
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let inner = dir.join("foo.txt");
+        fs::write(&inner, "hi").unwrap();
+        let result = resolve_within_workdir(&dir, "foo.txt");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), inner.canonicalize().unwrap());
+        let _ = fs::remove_dir_all(&dir);
+    }
 }

@@ -1,6 +1,6 @@
 use serde::Serialize;
 use std::path::Path;
-use crate::error::AppError;
+use crate::{error::AppError, git::repository::resolve_within_workdir};
 
 #[derive(Debug, Serialize)]
 pub struct ConflictEntry {
@@ -99,7 +99,7 @@ pub fn get_conflict_detail(repo: &git2::Repository, path: &str) -> Result<Confli
     let workdir = repo
         .workdir()
         .ok_or_else(|| AppError::Other("Bare repository".into()))?;
-    let full_path = workdir.join(path);
+    let full_path = resolve_within_workdir(workdir, path)?;
     let content = std::fs::read_to_string(&full_path)?;
 
     let (conflicts, trailing_lines) = parse_conflicts(&content);
@@ -124,7 +124,7 @@ pub fn resolve_conflict(
     let workdir = repo
         .workdir()
         .ok_or_else(|| AppError::Other("Bare repository".into()))?;
-    let full_path = workdir.join(path);
+    let full_path = resolve_within_workdir(workdir, path)?;
     // Text files end with a newline; the editor's textarea value doesn't.
     let mut resolution = resolution.to_string();
     if !resolution.is_empty() && !resolution.ends_with('\n') {
@@ -171,5 +171,43 @@ mod tests {
         assert_eq!(conflicts[0].ours_lines, vec!["a"]);
         assert_eq!(conflicts[1].theirs_lines, vec!["d"]);
         assert_eq!(trailing, vec!["tail"]);
+    }
+
+    // Regression tests for the path-traversal fix: get_conflict_detail/resolve_conflict
+    // must reject a `path` that escapes the repo workdir instead of joining it blindly.
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    static COUNTER: AtomicU32 = AtomicU32::new(0);
+
+    /// Sets up `<tmp>/secret.txt` (outside the repo) and `<tmp>/repo` (a bare-bones
+    /// git2 repo whose workdir is the traversal target's base).
+    fn repo_with_outside_secret() -> (git2::Repository, std::path::PathBuf) {
+        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let parent = std::env::temp_dir().join(format!("conflict_traversal_{}_{}", std::process::id(), n));
+        let _ = std::fs::remove_dir_all(&parent);
+        let repo_dir = parent.join("repo");
+        std::fs::create_dir_all(&repo_dir).unwrap();
+        let secret = parent.join("secret.txt");
+        std::fs::write(&secret, "top secret").unwrap();
+        let repo = git2::Repository::init(&repo_dir).unwrap();
+        (repo, secret)
+    }
+
+    #[test]
+    fn get_conflict_detail_rejects_traversal() {
+        let (repo, secret) = repo_with_outside_secret();
+        let result = get_conflict_detail(&repo, "../secret.txt");
+        assert!(matches!(result, Err(AppError::InvalidArgument(_))));
+        let _ = std::fs::remove_dir_all(repo.workdir().unwrap().parent().unwrap());
+        drop(secret);
+    }
+
+    #[test]
+    fn resolve_conflict_rejects_traversal_and_does_not_write() {
+        let (repo, secret) = repo_with_outside_secret();
+        let result = resolve_conflict(&repo, "../secret.txt", "pwned");
+        assert!(matches!(result, Err(AppError::InvalidArgument(_))));
+        assert_eq!(std::fs::read_to_string(&secret).unwrap(), "top secret");
+        let _ = std::fs::remove_dir_all(repo.workdir().unwrap().parent().unwrap());
     }
 }

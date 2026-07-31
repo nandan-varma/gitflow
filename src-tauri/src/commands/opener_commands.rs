@@ -1,69 +1,20 @@
-use std::path::Path;
 use tauri::State;
-use crate::{error::AppError, state::AppState, commands::remote_commands::truncate_stderr};
+use crate::{
+    error::AppError,
+    git::repository::resolve_within_workdir,
+    state::AppState,
+    commands::remote_commands::truncate_stderr,
+};
 
 fn repo_path(state: &AppState) -> Result<std::path::PathBuf, AppError> {
     state.repo_path.lock().unwrap().clone().ok_or(AppError::NoRepository)
-}
-
-fn resolve_path(base: &Path, user_path: &str) -> Result<std::path::PathBuf, AppError> {
-    let base = base.canonicalize().map_err(|_| AppError::Other("Repository path missing".into()))?;
-    let joined = if user_path.is_empty() {
-        base.clone()
-    } else {
-        base.join(user_path)
-    };
-    let canonical = joined.canonicalize().map_err(|_| {
-        AppError::InvalidArgument(format!("Path does not exist: {user_path}"))
-    })?;
-    if !canonical.starts_with(&base) {
-        return Err(AppError::InvalidArgument("Path is outside repository".into()));
-    }
-    Ok(canonical)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::fs;
-    use std::sync::atomic::{AtomicU32, Ordering};
-
-    static COUNTER: AtomicU32 = AtomicU32::new(0);
-
-    fn tmp_dir() -> std::path::PathBuf {
-        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-        std::env::temp_dir().join(format!("opener_resolve_{}", n))
-    }
-
-    #[test]
-    fn rejects_parent_traversal() {
-        let dir = tmp_dir();
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).unwrap();
-        let result = resolve_path(&dir, "../outside");
-        assert!(result.is_err());
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn accepts_inner_file() {
-        let dir = tmp_dir();
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).unwrap();
-        let inner = dir.join("foo.txt");
-        fs::write(&inner, "hi").unwrap();
-        let result = resolve_path(&dir, "foo.txt");
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), inner.canonicalize().unwrap());
-        let _ = fs::remove_dir_all(&dir);
-    }
 }
 
 #[tauri::command]
 pub async fn cmd_open_in_vscode(path: String, editor_cmd: String, state: State<'_, AppState>) -> Result<(), AppError> {
     let t = std::time::Instant::now();
     let base = repo_path(&state)?;
-    let full = resolve_path(&base, &path)?;
+    let full = resolve_within_workdir(&base, &path)?;
     let cmd = if editor_cmd.is_empty() { "code".to_string() } else { editor_cmd };
     let r: Result<(), AppError> = async {
         let out = tokio::process::Command::new(&cmd)
@@ -112,7 +63,7 @@ fn reveal_in_finder(full: &std::path::Path) -> std::process::Output {
 pub async fn cmd_reveal_in_finder(path: String, state: State<'_, AppState>) -> Result<(), AppError> {
     let t = std::time::Instant::now();
     let base = repo_path(&state)?;
-    let full = resolve_path(&base, &path)?;
+    let full = resolve_within_workdir(&base, &path)?;
     let r: Result<(), AppError> = async {
         let full_clone = full.clone();
         let out = tokio::task::spawn_blocking(move || reveal_in_finder(&full_clone))
@@ -166,7 +117,7 @@ fn open_terminal(dir: &std::path::Path, _terminal_app: &str) -> std::process::Ou
 pub async fn cmd_open_in_terminal(path: String, terminal_app: String, state: State<'_, AppState>) -> Result<(), AppError> {
     let t = std::time::Instant::now();
     let base = repo_path(&state)?;
-    let resolved = resolve_path(&base, &path)?;
+    let resolved = resolve_within_workdir(&base, &path)?;
     let dir = if resolved.is_dir() {
         resolved
     } else {
