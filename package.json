@@ -19,6 +19,7 @@
     "@tauri-apps/plugin-log": "^2",
     "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-updater": "^2",
+    "dompurify": "^3.4.12",
     "lucide-react": "^1.22.0",
     "openai": "^6.45.0",
     "react": "^19.1.0",

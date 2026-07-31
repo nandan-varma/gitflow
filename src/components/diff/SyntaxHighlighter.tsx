@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import type { Highlighter } from "shiki";
+import DOMPurify from "dompurify";
 
 let highlighterPromise: Promise<Highlighter> | null = null;
 
@@ -54,11 +55,13 @@ export function SyntaxHighlighter({ code, path }: Props) {
     return () => { cancelled = true; };
   }, [code, path]);
 
+  // Shiki's output is just <pre><span>-wrapped text tokens, but sanitize
+  // defensively with a real HTML sanitizer rather than a hand-rolled regex —
+  // regexes can't reliably cover every injection vector (event handlers,
+  // javascript: URIs, encoded variants) the way a parser-based one can.
   const sanitized = useMemo(() => {
     if (!html) return null;
-    return html
-      .replace(/<script[\s\S]*?<\/script>/gi, "")
-      .replace(/\bon\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+    return DOMPurify.sanitize(html, { ALLOWED_TAGS: ["pre", "code", "span"], ALLOWED_ATTR: ["class", "style", "tabindex"] });
   }, [html]);
 
   if (!html) {
