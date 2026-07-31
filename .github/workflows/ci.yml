@@ -24,6 +24,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm test
+      # --prod scopes this to shipped dependencies — the vite/esbuild/babel
+      # dev toolchain has its own advisory noise that doesn't reach the
+      # built app, and would make this step flaky for no security benefit.
+      - run: pnpm audit --prod
   rust:
     runs-on: ubuntu-latest
     steps:
@@ -43,3 +47,13 @@ jobs:
         working-directory: src-tauri
       - run: cargo test
         working-directory: src-tauri
+      - uses: taiki-e/install-action@cargo-audit
+      - name: cargo audit
+        working-directory: src-tauri
+        run: |
+          # RUSTSEC-2026-0194/0195 (quick-xml DoS) come in transitively via
+          # tauri -> plist, with no direct dependency of ours to bump; this
+          # app also has no code path that parses untrusted XML/plist data.
+          # Re-check on every Tauri version bump and drop the ignores once
+          # upstream updates plist's quick-xml pin.
+          cargo audit --ignore RUSTSEC-2026-0194 --ignore RUSTSEC-2026-0195
