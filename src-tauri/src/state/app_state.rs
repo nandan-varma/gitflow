@@ -15,10 +15,20 @@ pub struct CommandLogEntry {
     pub error_message: Option<String>,
 }
 
+/// Cached, fully-ordered oid list for the commit graph, plus the
+/// `graph::compute_state_key` fingerprint it was built from. Revalidated
+/// (cheaply) on every graph request; rebuilt only when the fingerprint
+/// no longer matches — see `commands::graph_commands::cmd_get_commit_graph`.
+pub struct GraphCache {
+    pub key: u64,
+    pub oids: Vec<git2::Oid>,
+}
+
 pub struct AppState {
     pub repo_path: Mutex<Option<PathBuf>>,
     pub log_tx: mpsc::UnboundedSender<CommandLogEntry>,
     pub watch_stop: Mutex<Option<Arc<AtomicBool>>>,
+    pub graph_cache: Mutex<Option<GraphCache>>,
 }
 
 impl AppState {
@@ -27,11 +37,15 @@ impl AppState {
             repo_path: Mutex::new(None),
             log_tx,
             watch_stop: Mutex::new(None),
+            graph_cache: Mutex::new(None),
         }
     }
 
     pub fn set_repo_path(&self, path: PathBuf) {
         *self.repo_path.lock().expect("repo_path mutex poisoned") = Some(path);
+        // A new repo invalidates any cached graph — its state key is computed
+        // against whichever repo is currently open.
+        *self.graph_cache.lock().expect("graph_cache mutex poisoned") = None;
     }
 
     pub fn open_repo(&self) -> Result<git2::Repository, crate::error::AppError> {

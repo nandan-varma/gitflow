@@ -20,16 +20,50 @@ pub struct GraphPage {
     pub has_more: bool,
 }
 
-pub fn get_commit_graph(
-    repo: &git2::Repository,
-    limit: usize,
-    offset: usize,
-) -> Result<GraphPage, AppError> {
-    // Single pass: build ref label map (heads + tags) and populate the revwalk.
-    let mut ref_map: HashMap<String, Vec<String>> = HashMap::new();
+/// Walk every commit reachable from HEAD or any ref, topologically sorted.
+/// This is the expensive part of building the graph — callers that page
+/// through history should compute it once (see `compute_state_key`) and
+/// reuse the result across pages instead of calling this per-page.
+pub fn list_all_oids(repo: &git2::Repository) -> Result<Vec<git2::Oid>, AppError> {
     let mut walk = repo.revwalk()?;
     walk.push_head().ok();
+    for reference in repo.references()? {
+        let r = reference?;
+        if let Some(oid) = r.target() {
+            walk.push(oid).ok();
+        }
+    }
+    walk.set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME)?;
+    Ok(walk.filter_map(|r| r.ok()).collect())
+}
 
+/// Cheap, order-independent fingerprint of everything that could change what
+/// `list_all_oids` returns: HEAD's target plus every ref's target oid. Two
+/// calls returning the same key mean a cached oid list is still valid —
+/// this avoids re-walking all of history just to check for staleness.
+pub fn compute_state_key(repo: &git2::Repository) -> Result<u64, AppError> {
+    use std::hash::{Hash, Hasher};
+    let mut entries: Vec<String> = Vec::new();
+    if let Ok(head) = repo.head() {
+        if let Some(oid) = head.target() {
+            entries.push(format!("HEAD:{oid}"));
+        }
+    }
+    for reference in repo.references()? {
+        let r = reference?;
+        if let (Some(name), Some(oid)) = (r.name(), r.target()) {
+            entries.push(format!("{name}:{oid}"));
+        }
+    }
+    entries.sort_unstable();
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    entries.hash(&mut hasher);
+    Ok(hasher.finish())
+}
+
+/// Label map from commit oid (as string) to the branch/tag names pointing at it.
+fn build_ref_map(repo: &git2::Repository) -> Result<HashMap<String, Vec<String>>, AppError> {
+    let mut ref_map: HashMap<String, Vec<String>> = HashMap::new();
     for reference in repo.references()? {
         let r = reference?;
         let name = r.name().unwrap_or("");
@@ -39,25 +73,17 @@ pub fn get_commit_graph(
                 ref_map.entry(peeled.id().to_string()).or_default().push(shorthand);
             }
         }
-        if let Some(oid) = r.target() {
-            walk.push(oid).ok();
-        }
     }
+    Ok(ref_map)
+}
 
-    walk.set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME)?;
-
-    let all_oids: Vec<git2::Oid> = walk
-        .filter_map(|r| r.ok())
-        .skip(offset)
-        .take(limit + 1)
-        .collect();
-
-    let has_more = all_oids.len() > limit;
-    let oids: Vec<git2::Oid> = all_oids.into_iter().take(limit).collect();
-
-    let mut nodes: Vec<GraphNode> = Vec::new();
-
-    for oid in &oids {
+fn nodes_for_oids(
+    repo: &git2::Repository,
+    oids: &[git2::Oid],
+    ref_map: &HashMap<String, Vec<String>>,
+) -> Result<Vec<GraphNode>, AppError> {
+    let mut nodes = Vec::with_capacity(oids.len());
+    for oid in oids {
         let commit = repo.find_commit(*oid)?;
         let oid_str = oid.to_string();
 
@@ -71,7 +97,7 @@ pub fn get_commit_graph(
         // Deduplicate refs
         let unique_refs: Vec<String> = {
             let set: std::collections::BTreeSet<String> = refs.into_iter().collect();
-            set.iter().cloned().collect()
+            set.into_iter().collect()
         };
 
         nodes.push(GraphNode {
@@ -85,7 +111,26 @@ pub fn get_commit_graph(
             refs: unique_refs,
         });
     }
+    Ok(nodes)
+}
 
+/// Slice a page of nodes out of a precomputed, fully-ordered oid list — the
+/// cheap path once `list_all_oids` has already run once for the current
+/// repo state.
+pub fn page_from_oids(
+    repo: &git2::Repository,
+    all_oids: &[git2::Oid],
+    limit: usize,
+    offset: usize,
+) -> Result<GraphPage, AppError> {
+    let start = offset.min(all_oids.len());
+    let end = offset.saturating_add(limit).saturating_add(1).min(all_oids.len());
+    let slice = &all_oids[start..end];
+    let has_more = slice.len() > limit;
+    let page_oids = &slice[..slice.len().min(limit)];
+
+    let ref_map = build_ref_map(repo)?;
+    let nodes = nodes_for_oids(repo, page_oids, &ref_map)?;
     Ok(GraphPage { nodes, has_more })
 }
 
@@ -332,6 +377,14 @@ mod tests {
         let _ = std::fs::remove_dir_all(&path);
     }
 
+    /// One-shot page (walk + slice) — what `get_commit_graph` used to do
+    /// directly, before the caching split. Production code now goes through
+    /// `list_all_oids` once and `page_from_oids` per page instead.
+    fn get_commit_graph(repo: &git2::Repository, limit: usize, offset: usize) -> Result<GraphPage, AppError> {
+        let all_oids = list_all_oids(repo)?;
+        page_from_oids(repo, &all_oids, limit, offset)
+    }
+
     #[test]
     fn test_graph_returns_all_commits() {
         let repo = init_repo();
@@ -409,6 +462,69 @@ mod tests {
         let repo = init_repo();
         let result = get_file_history(&repo, "nonexistent.txt", 10).unwrap();
         assert!(result.is_empty());
+        cleanup(repo);
+    }
+
+    #[test]
+    fn test_page_from_oids_consecutive_pages_cover_all_commits_once() {
+        let repo = init_repo();
+        let all_oids = list_all_oids(&repo).unwrap();
+        assert_eq!(all_oids.len(), 5);
+
+        // Simulates infinite-scroll paging against one cached oid list: every
+        // commit appears exactly once across consecutive pages, in the same
+        // order as the full walk, regardless of page size.
+        for page_size in [1, 2, 3, 10] {
+            let mut seen: Vec<String> = Vec::new();
+            let mut offset = 0;
+            loop {
+                let page = page_from_oids(&repo, &all_oids, page_size, offset).unwrap();
+                let got = page.nodes.len();
+                seen.extend(page.nodes.into_iter().map(|n| n.oid));
+                offset += got;
+                if !page.has_more { break; }
+            }
+            let expected: Vec<String> = all_oids.iter().map(|o| o.to_string()).collect();
+            assert_eq!(seen, expected, "page_size={page_size}");
+        }
+        cleanup(repo);
+    }
+
+    #[test]
+    fn test_page_from_oids_offset_past_end_is_empty() {
+        let repo = init_repo();
+        let all_oids = list_all_oids(&repo).unwrap();
+        let page = page_from_oids(&repo, &all_oids, 10, 999).unwrap();
+        assert!(page.nodes.is_empty());
+        assert!(!page.has_more);
+        cleanup(repo);
+    }
+
+    #[test]
+    fn test_state_key_stable_without_changes() {
+        let repo = init_repo();
+        let k1 = compute_state_key(&repo).unwrap();
+        let k2 = compute_state_key(&repo).unwrap();
+        assert_eq!(k1, k2);
+        cleanup(repo);
+    }
+
+    #[test]
+    fn test_state_key_changes_on_new_commit() {
+        let repo = init_repo();
+        let before = compute_state_key(&repo).unwrap();
+
+        // init_repo() commits directly onto refs/heads/main (not HEAD, which
+        // may still point at git2's default `refs/heads/master`).
+        let sig = repo.signature().unwrap();
+        {
+            let main_commit = repo.find_branch("main", git2::BranchType::Local).unwrap().get().peel_to_commit().unwrap();
+            let tree = main_commit.tree().unwrap();
+            repo.commit(Some("refs/heads/main"), &sig, &sig, "one more", &tree, &[&main_commit]).unwrap();
+        }
+
+        let after = compute_state_key(&repo).unwrap();
+        assert_ne!(before, after);
         cleanup(repo);
     }
 }
