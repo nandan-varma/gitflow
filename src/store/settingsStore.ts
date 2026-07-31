@@ -9,7 +9,6 @@ interface Settings {
   autoFetchMinutes: number;
   aiBaseUrl: string;
   aiModel: string;
-  aiApiKey: string;
   codeEditor: string;
   terminalApp: string;
   zoomFactor: number;
@@ -26,7 +25,6 @@ const defaults: Settings = {
   autoFetchMinutes: 10,
   aiBaseUrl: "https://api.openai.com/v1",
   aiModel: "",
-  aiApiKey: "",
   codeEditor: "code",
   terminalApp: "Terminal",
   zoomFactor: 1,

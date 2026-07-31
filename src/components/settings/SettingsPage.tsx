@@ -4,6 +4,7 @@ import { check as checkUpdate } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import OpenAI from "openai";
 import { useSettingsStore } from "../../store/settingsStore";
+import { useAiKeyStore } from "../../store/aiKeyStore";
 import { useUIStore } from "../../store/uiStore";
 import { useRepoStore } from "../../store/repoStore";
 import { useConfirmStore } from "../../store/confirmStore";
@@ -165,6 +166,8 @@ function Kbd({ children }: { children: React.ReactNode }) {
 export function SettingsPage() {
   const settings = useSettingsStore();
   const { patch, reset } = settings;
+  const aiApiKey = useAiKeyStore((s) => s.apiKey);
+  const setAiApiKey = useAiKeyStore((s) => s.setApiKey);
   const { openDialog } = useUIStore();
   const { recentRepos, clearRecentRepos } = useRepoStore();
   const showConfirm = useConfirmStore((s) => s.showConfirm);
@@ -215,7 +218,7 @@ export function SettingsPage() {
     setTestState({ status: "testing" });
     try {
       const client = new OpenAI({
-        apiKey: settings.aiApiKey || "none",
+        apiKey: aiApiKey || "none",
         baseURL: settings.aiBaseUrl,
         dangerouslyAllowBrowser: true,
         timeout: 8000,
@@ -451,13 +454,13 @@ export function SettingsPage() {
         },
         {
           label: "API key",
-          description: "Stored locally on this machine",
-          keywords: "token secret credentials",
+          description: "Stored in your OS keychain, not in app settings",
+          keywords: "token secret credentials keychain",
           control: (
             <input
               type="password"
-              value={settings.aiApiKey}
-              onChange={(e) => patch({ aiApiKey: e.target.value })}
+              value={aiApiKey}
+              onChange={(e) => setAiApiKey(e.target.value)}
               style={{ ...inputStyle, width: 240 }}
               placeholder="sk-…"
               aria-label="AI API key"

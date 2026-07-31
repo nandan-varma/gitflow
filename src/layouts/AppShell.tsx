@@ -32,6 +32,7 @@ import { useCommandLogStore } from "../store/commandLogStore";
 import { useIpcEvent } from "../hooks/useIpcEvent";
 import { useContinueRebase, useAbortRebase, useCherryPickContinue, useCherryPickAbort } from "../hooks/useBranches";
 import { useSettingsStore } from "../store/settingsStore";
+import { useAiKeyStore } from "../store/aiKeyStore";
 import { useRepoStore } from "../store/repoStore";
 import { useAppCommands } from "../hooks/useAppCommands";
 import { isMac } from "../lib/commands";
@@ -214,6 +215,10 @@ export function AppShell() {
     if (!checkUpdatesOnStartup || updateChecked.current) return;
     updateChecked.current = true;
     checkUpdate().then((u) => { if (u) setActiveView("settings"); }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    useAiKeyStore.getState().load();
   }, []);
 
   const theme = useSettingsStore((s) => s.theme);

@@ -211,4 +211,11 @@ export const ipc = {
 
   openInTerminal: (path: string, terminalApp: string) =>
     invoke<void>("cmd_open_in_terminal", { path, terminalApp }),
+
+  // Secrets (OS keychain)
+  getAiApiKey: () =>
+    invoke<string | null>("cmd_get_ai_api_key"),
+
+  setAiApiKey: (key: string) =>
+    invoke<void>("cmd_set_ai_api_key", { key }),
 };

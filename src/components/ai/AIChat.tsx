@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import OpenAI from "openai";
 import { Sparkles, X, Square, Plus, Send, AlertTriangle } from "lucide-react";
 import { useSettingsStore } from "../../store/settingsStore";
+import { useAiKeyStore } from "../../store/aiKeyStore";
 import { useUIStore } from "../../store/uiStore";
 import { useAIStore } from "../../store/aiStore";
 import { tools, DANGEROUS_TOOLS, executeTool } from "../../lib/aiTools";
@@ -36,7 +37,8 @@ function tick() {
 }
 
 export function AIChat() {
-  const { aiBaseUrl, aiModel, aiApiKey } = useSettingsStore();
+  const { aiBaseUrl, aiModel } = useSettingsStore();
+  const aiApiKey = useAiKeyStore((s) => s.apiKey);
   const setActiveView = useUIStore((s) => s.setActiveView);
 
   const {

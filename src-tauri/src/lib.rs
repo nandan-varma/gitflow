@@ -18,6 +18,7 @@ use commands::{
     remote_commands::{cmd_git_fetch, cmd_git_push, cmd_git_pull, cmd_interactive_rebase, cmd_delete_tag, cmd_git_revert, cmd_git_reset},
     gh_commands::{cmd_gh_pr_list, cmd_gh_pr_view, cmd_gh_pr_create, cmd_gh_pr_checkout, cmd_gh_pr_open, cmd_gh_pr_merge, cmd_gh_issue_list, cmd_gh_issue_view, cmd_gh_issue_open, cmd_gh_issue_create_web},
     opener_commands::{cmd_open_in_vscode, cmd_reveal_in_finder, cmd_open_in_terminal},
+    secrets_commands::{cmd_get_ai_api_key, cmd_set_ai_api_key},
 };
 
 use tokio::sync::mpsc;
@@ -106,6 +107,8 @@ pub fn run() {
             cmd_open_in_vscode,
             cmd_reveal_in_finder,
             cmd_open_in_terminal,
+            cmd_get_ai_api_key,
+            cmd_set_ai_api_key,
         ])
         .setup(|app| {
             // Forward command log entries to the frontend as Tauri events

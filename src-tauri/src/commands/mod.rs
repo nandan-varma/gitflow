@@ -9,3 +9,4 @@ pub mod conflict_commands;
 pub mod remote_commands;
 pub mod gh_commands;
 pub mod opener_commands;
+pub mod secrets_commands;
