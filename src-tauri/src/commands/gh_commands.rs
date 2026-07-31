@@ -1,5 +1,5 @@
 use tauri::State;
-use crate::{error::AppError, state::AppState};
+use crate::{error::AppError, state::AppState, commands::remote_commands::validate_ref_arg};
 
 async fn run_gh(args: &[&str], state: &AppState) -> Result<String, AppError> {
     let path = state.repo_path.lock().unwrap().clone().ok_or(AppError::NoRepository)?;
@@ -50,6 +50,7 @@ pub async fn cmd_gh_pr_create(
     state: State<'_, AppState>,
 ) -> Result<String, AppError> {
     let t = std::time::Instant::now();
+    validate_ref_arg(&base, "base branch")?;
     let mut args = vec!["pr", "create", "--title", &title, "--body", &body, "--base", &base];
     if draft { args.push("--draft"); }
     let r = run_gh(&args, &state).await;

@@ -18,6 +18,25 @@ pub fn truncate_stderr(stderr: &str) -> String {
     }
 }
 
+/// Reject empty or dash-leading ref-like arguments (branch/tag names) before
+/// they reach the `git` CLI — a value like `--upload-pack=...` would otherwise
+/// be parsed as a flag instead of a positional argument.
+pub(crate) fn validate_ref_arg(value: &str, field: &str) -> Result<(), AppError> {
+    if value.is_empty() || value.starts_with('-') {
+        return Err(AppError::InvalidArgument(format!("Invalid {field}: {value}")));
+    }
+    Ok(())
+}
+
+/// Reject anything that isn't a plausible (possibly abbreviated) commit OID
+/// before it reaches the `git` CLI as a positional argument.
+pub(crate) fn validate_oid_arg(oid: &str) -> Result<(), AppError> {
+    if oid.len() < 4 || !oid.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err(AppError::InvalidArgument(format!("Invalid commit OID: {oid}")));
+    }
+    Ok(())
+}
+
 async fn run_git(args: &[&str], state: &AppState) -> Result<String, AppError> {
     let path = state.repo_path.lock().unwrap().clone().ok_or(AppError::NoRepository)?;
     let out = tokio::process::Command::new("git")
@@ -49,6 +68,7 @@ pub async fn cmd_git_push(
     state: State<'_, AppState>,
 ) -> Result<String, AppError> {
     let t = std::time::Instant::now();
+    validate_ref_arg(&branch, "branch name")?;
     let mut args = vec!["push"];
     if set_upstream {
         args.extend(["--set-upstream", "origin", branch.as_str()]);
@@ -64,6 +84,7 @@ pub async fn cmd_git_push(
 #[tauri::command]
 pub async fn cmd_delete_tag(name: String, state: State<'_, AppState>) -> Result<String, AppError> {
     let t = std::time::Instant::now();
+    validate_ref_arg(&name, "tag name")?;
     let r = run_git(&["tag", "-d", &name], &state).await;
     state.log_command("cmd_delete_tag", t, &r);
     r
@@ -72,6 +93,7 @@ pub async fn cmd_delete_tag(name: String, state: State<'_, AppState>) -> Result<
 #[tauri::command]
 pub async fn cmd_git_revert(oid: String, state: State<'_, AppState>) -> Result<String, AppError> {
     let t = std::time::Instant::now();
+    validate_oid_arg(&oid)?;
     let r = run_git(&["revert", "--no-commit", &oid], &state).await;
     state.log_command("cmd_git_revert", t, &r);
     r
@@ -80,6 +102,7 @@ pub async fn cmd_git_revert(oid: String, state: State<'_, AppState>) -> Result<S
 #[tauri::command]
 pub async fn cmd_git_reset(oid: String, mode: String, state: State<'_, AppState>) -> Result<String, AppError> {
     let t = std::time::Instant::now();
+    validate_oid_arg(&oid)?;
     let mode_flag = match mode.as_str() {
         "soft" | "mixed" | "hard" => format!("--{mode}"),
         _ => return Err(AppError::InvalidArgument("mode must be soft, mixed, or hard".into())),
@@ -124,6 +147,7 @@ pub async fn cmd_interactive_rebase(
 ) -> Result<String, AppError> {
     let t = std::time::Instant::now();
     let r: Result<String, AppError> = async {
+        validate_ref_arg(&base, "rebase base")?;
         let path = state.repo_path.lock().unwrap().clone().ok_or(AppError::NoRepository)?;
 
         let todo_content = build_rebase_todo(&steps)?;
@@ -226,5 +250,41 @@ mod tests {
         let result = truncate_stderr(input);
         assert!(result.len() <= 500);
         assert!(result.contains("error:"));
+    }
+
+    #[test]
+    fn validate_ref_arg_rejects_leading_dash() {
+        let err = validate_ref_arg("--upload-pack=/bin/sh", "branch name").unwrap_err();
+        assert!(matches!(err, AppError::InvalidArgument(_)));
+    }
+
+    #[test]
+    fn validate_ref_arg_rejects_empty() {
+        assert!(validate_ref_arg("", "branch name").is_err());
+    }
+
+    #[test]
+    fn validate_ref_arg_accepts_normal_name() {
+        assert!(validate_ref_arg("feature/foo", "branch name").is_ok());
+    }
+
+    #[test]
+    fn validate_oid_arg_rejects_leading_dash() {
+        assert!(validate_oid_arg("-x").is_err());
+    }
+
+    #[test]
+    fn validate_oid_arg_rejects_non_hex() {
+        assert!(validate_oid_arg("not-hex!!").is_err());
+    }
+
+    #[test]
+    fn validate_oid_arg_rejects_too_short() {
+        assert!(validate_oid_arg("abc").is_err());
+    }
+
+    #[test]
+    fn validate_oid_arg_accepts_short_sha() {
+        assert!(validate_oid_arg("a1b2c3d4").is_ok());
     }
 }
