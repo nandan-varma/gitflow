@@ -1,4 +1,4 @@
-use crate::{error::AppError, git::diff::DiffLine};
+use crate::{error::AppError, git::diff::DiffLine, git::repository::resolve_within_workdir};
 
 pub type HunkLine = DiffLine;
 
@@ -114,6 +114,13 @@ pub fn unstage_hunk(
 
 pub fn discard_changes(repo: &git2::Repository, path: &str) -> Result<(), AppError> {
     let p = std::path::Path::new(path);
+    // git2 0.19's Index::get_path panics instead of erroring on a path
+    // starting with `.`/`..` (it unwraps path_to_repo_path() internally,
+    // where every other git2::Index method propagates it as a Result) —
+    // reject anything but plain relative components before it gets there.
+    if p.components().any(|c| !matches!(c, std::path::Component::Normal(_))) {
+        return Err(AppError::InvalidArgument(format!("Invalid path: {path}")));
+    }
     // Untracked file: checkout_index is a silent no-op, so delete it instead.
     let in_index = repo.index()?.get_path(p, 0).is_some();
     let in_head = repo.head().ok()
@@ -122,7 +129,8 @@ pub fn discard_changes(repo: &git2::Repository, path: &str) -> Result<(), AppErr
         .unwrap_or(false);
     if !in_index && !in_head {
         let workdir = repo.workdir().ok_or_else(|| AppError::Other("Bare repository".into()))?;
-        std::fs::remove_file(workdir.join(p))?;
+        let full_path = resolve_within_workdir(workdir, path)?;
+        std::fs::remove_file(full_path)?;
         return Ok(());
     }
     let mut checkout = git2::build::CheckoutBuilder::new();
@@ -247,6 +255,70 @@ mod tests {
         std::fs::write(&untracked, "temp\n").unwrap();
         discard_changes(&repo, "new.txt").unwrap();
         assert!(!untracked.exists());
+        cleanup(repo);
+    }
+
+    #[test]
+    fn discard_untracked_rejects_traversal_and_does_not_delete() {
+        // Regression test: an untracked-looking path with `..` components used
+        // to fall straight through to std::fs::remove_file(workdir.join(path))
+        // with no containment check — an arbitrary-file-delete primitive for
+        // any path that (correctly) isn't found in the index or HEAD tree.
+        let repo = init_repo();
+        commit_file(&repo, "a.txt", "a\n");
+
+        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let secret = std::env::temp_dir().join(format!("test_staging_secret_{}_{}", std::process::id(), n));
+        std::fs::write(&secret, "top secret").unwrap();
+        let traversal_path = format!("../{}", secret.file_name().unwrap().to_str().unwrap());
+
+        let result = discard_changes(&repo, &traversal_path);
+        assert!(matches!(result, Err(AppError::InvalidArgument(_))));
+        assert!(secret.exists(), "file outside the repo must survive a rejected discard");
+        assert_eq!(std::fs::read_to_string(&secret).unwrap(), "top secret");
+
+        let _ = std::fs::remove_file(&secret);
+        cleanup(repo);
+    }
+
+    #[test]
+    fn discard_untracked_traversal_path_does_not_panic() {
+        // The `..` guard must run before repo.index()?.get_path(), which
+        // panics (rather than erroring) on a `..`-leading path in git2 0.19 —
+        // this specifically exercises that ordering, independent of what the
+        // eventual error variant is.
+        let repo = init_repo();
+        commit_file(&repo, "a.txt", "a\n");
+        let _ = discard_changes(&repo, "../outside.txt");
+        cleanup(repo);
+    }
+
+    #[test]
+    fn discard_rejects_absolute_path() {
+        let repo = init_repo();
+        commit_file(&repo, "a.txt", "a\n");
+        let result = discard_changes(&repo, "/etc/passwd");
+        assert!(matches!(result, Err(AppError::InvalidArgument(_))));
+        cleanup(repo);
+    }
+
+    #[test]
+    fn discard_rejects_curdir_component() {
+        let repo = init_repo();
+        commit_file(&repo, "a.txt", "a\n");
+        let result = discard_changes(&repo, "./a.txt");
+        assert!(matches!(result, Err(AppError::InvalidArgument(_))));
+        cleanup(repo);
+    }
+
+    #[test]
+    fn discard_accepts_normal_nested_path() {
+        let repo = init_repo();
+        let dir = repo.workdir().unwrap().join("sub");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("b.txt"), "temp\n").unwrap();
+        discard_changes(&repo, "sub/b.txt").unwrap();
+        assert!(!dir.join("b.txt").exists());
         cleanup(repo);
     }
 
