@@ -39,7 +39,7 @@ pub fn get_blame(repo: &git2::Repository, path: &str) -> Result<Vec<BlameLine>, 
                 .entry(oid.clone())
                 .or_insert_with(|| {
                     repo.find_commit(commit_id)
-                        .map(|c| c.summary().unwrap_or("").to_string())
+                        .map(|c| c.summary().ok().flatten().unwrap_or("").to_string())
                         .unwrap_or_default()
                 })
                 .clone();
@@ -48,9 +48,9 @@ pub fn get_blame(repo: &git2::Repository, path: &str) -> Result<Vec<BlameLine>, 
                 line_no,
                 content: line_content.to_string(),
                 oid,
-                author_name: sig.name().unwrap_or("").to_string(),
-                author_email: sig.email().unwrap_or("").to_string(),
-                timestamp: sig.when().seconds(),
+                author_name: sig.as_ref().and_then(|s| s.name().ok()).unwrap_or("").to_string(),
+                author_email: sig.as_ref().and_then(|s| s.email().ok()).unwrap_or("").to_string(),
+                timestamp: sig.as_ref().map_or(0, |s| s.when().seconds()),
                 summary,
             });
         }

@@ -226,7 +226,7 @@ mod tests {
         stage_file(&repo, "a.txt").unwrap();
         {
             let statuses = repo.statuses(None).unwrap();
-            let entry = statuses.iter().find(|e| e.path() == Some("a.txt")).unwrap();
+            let entry = statuses.iter().find(|e| e.path() == Ok("a.txt")).unwrap();
             assert!(entry.status().contains(git2::Status::INDEX_DELETED));
         }
         cleanup(repo);

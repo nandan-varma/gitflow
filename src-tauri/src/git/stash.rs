@@ -43,7 +43,7 @@ pub fn list_stashes(repo: &mut git2::Repository) -> Result<Vec<StashEntry>, AppE
         let commit = repo.find_commit(oid)?;
         entries.push(StashEntry {
             index: i,
-            message: commit.summary().unwrap_or("WIP").to_string(),
+            message: commit.summary().ok().flatten().unwrap_or("WIP").to_string(),
             oid: oid.to_string(),
             timestamp: commit.time().seconds(),
         });

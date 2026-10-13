@@ -51,7 +51,7 @@ pub fn compute_state_key(repo: &git2::Repository) -> Result<u64, AppError> {
     }
     for reference in repo.references()? {
         let r = reference?;
-        if let (Some(name), Some(oid)) = (r.name(), r.target()) {
+        if let (Ok(name), Some(oid)) = (r.name(), r.target()) {
             entries.push(format!("{name}:{oid}"));
         }
     }
@@ -102,7 +102,7 @@ fn nodes_for_oids(
 
         nodes.push(GraphNode {
             oid: oid_str,
-            summary: commit.summary().unwrap_or("").to_string(),
+            summary: commit.summary().ok().flatten().unwrap_or("").to_string(),
             author_name: author.name().unwrap_or("").to_string(),
             author_email: author.email().unwrap_or("").to_string(),
             timestamp: commit.time().seconds(),
@@ -233,8 +233,8 @@ pub fn get_commit_detail(repo: &git2::Repository, oid_str: &str) -> Result<Commi
 
     Ok(CommitDetail {
         oid: oid_str.to_string(),
-        summary: commit.summary().unwrap_or("").to_string(),
-        body: commit.body().map(|s| s.to_string()),
+        summary: commit.summary().ok().flatten().unwrap_or("").to_string(),
+        body: commit.body().ok().flatten().map(|s| s.to_string()),
         author_name: author.name().unwrap_or("").to_string(),
         author_email: author.email().unwrap_or("").to_string(),
         committer_name: committer.name().unwrap_or("").to_string(),
@@ -298,7 +298,7 @@ pub fn get_file_history(
             let author = commit.author();
             entries.push(FileHistoryEntry {
                 oid: oid.to_string(),
-                summary: commit.summary().unwrap_or("").to_string(),
+                summary: commit.summary().ok().flatten().unwrap_or("").to_string(),
                 author_name: author.name().unwrap_or("").to_string(),
                 timestamp: commit.time().seconds(),
             });

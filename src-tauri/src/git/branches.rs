@@ -101,7 +101,7 @@ pub fn checkout_remote_branch(repo: &git2::Repository, remote_name: &str) -> Res
     let refname = local
         .get()
         .name()
-        .ok_or_else(|| AppError::Git("Invalid branch ref name".into()))?
+        .map_err(|_| AppError::Git("Invalid branch ref name".into()))?
         .to_string();
     let object = local.get().peel(git2::ObjectType::Commit)?;
     repo.checkout_tree(&object, None)?;

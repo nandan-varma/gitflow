@@ -44,7 +44,7 @@ pub fn get_repo_info(repo: &git2::Repository) -> Result<RepoInfo, AppError> {
         Ok(head) => {
             let oid = head.target().map(|o| o.to_string());
             let branch = if head.is_branch() {
-                head.shorthand().map(|s| s.to_string())
+                head.shorthand().ok().map(|s| s.to_string())
             } else {
                 oid.as_deref().map(|s| &s[..8]).map(|s| format!("(detached) {s}"))
             };
@@ -101,7 +101,7 @@ pub fn list_tags(repo: &git2::Repository) -> Result<Vec<TagEntry>, AppError> {
             .to_string();
         let (is_annotated, message, target_oid) = if let Ok(tag) = repo.find_tag(oid) {
             let peeled = tag.target().ok().map(|t| t.id()).unwrap_or(oid);
-            (true, tag.message().map(|m| m.trim().to_string()), peeled.to_string())
+            (true, tag.message().ok().flatten().map(|m| m.trim().to_string()), peeled.to_string())
         } else {
             (false, None, oid.to_string())
         };
